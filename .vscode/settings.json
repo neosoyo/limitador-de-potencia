@@ -1,0 +1,8 @@
+{
+    "nrf-connect.applications": [
+        "${workspaceFolder}/firmware/zephyr/pm100"
+    ],
+    "nrf-connect.debugging.bindings": {
+        "${workspaceFolder}/firmware/zephyr/pm100/build": "Launch pm100/build"
+    }
+}
