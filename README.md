@@ -32,5 +32,7 @@ Metas:
 * Suportar bootloader com assinatura de firmware.
 
 
+# Futuro
 
+Adicionar um monitor de células da bateria: https://www.analog.com/media/en/technical-documentation/data-sheets/ltc6810-1-6810-2.pdf
 
