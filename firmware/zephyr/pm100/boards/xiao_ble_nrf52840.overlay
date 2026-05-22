@@ -1,0 +1,144 @@
+// To get started, press Ctrl+Space to bring up the completion menu and view the available nodes.
+
+// You can also use the buttons in the sidebar to perform actions on nodes.
+// Actions currently available include:
+
+// * Enabling / disabling the node
+// * Adding the bus to a bus
+// * Removing the node
+// * Connecting ADC channels
+
+// For more help, browse the DeviceTree documentation at https://docs.zephyrproject.org/latest/guides/dts/index.html
+// You can also visit the nRF DeviceTree extension documentation at https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/guides/ncs_configure_app.html#devicetree-support-in-the-extension
+
+#include <zephyr/dt-bindings/pwm/pwm.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/sensor/ina226.h>
+#include <zephyr/dt-bindings/led/led.h>
+
+&pinctrl {
+
+	esc_default: esc_default {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 0, 2)>;
+		};
+	};
+	esc_sleep: esc_sleep {
+		group1 {
+			psels = <NRF_PSEL(PWM_OUT0, 0, 2)>;
+		};
+	};
+
+	// spi2_default: spi2_default {
+	// 	group1 {
+	// 		psels = <NRF_PSEL(SPIM_SCK, 0, 13)>,
+	// 			<NRF_PSEL(SPIM_MOSI, 0, 17)>,
+	// 			<NRF_PSEL(SPIM_MISO, 0, 15)>;
+	// 	};
+	// };
+
+	// spi2_sleep: spi2_sleep {
+	// 	group1 {
+	// 		psels = <NRF_PSEL(SPIM_SCK, 0, 13)>,
+	// 			<NRF_PSEL(SPIM_MOSI, 0, 17)>,
+	// 			<NRF_PSEL(SPIM_MISO, 0, 15)>;
+	// 		low-power-enable;
+	// 	};
+	// };
+};
+
+&i2c1 {
+	ina226@40 {
+		compatible = "ti,ina226";
+		reg = <0x40>;
+		current-lsb-microamps = <500>;
+		rshunt-micro-ohms = <5000>;
+		avg-count = <16>;
+		vbus-conversion-time-us = <332>;
+		vshunt-conversion-time-us = <332>;
+		status = "okay";
+	};
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-0 = <&spi2_default>;
+	pinctrl-1 = <&spi2_sleep>;
+	pinctrl-names = "default","sleep";
+	led_rgba: ws2812@0 {
+		compatible = "worldsemi,ws2812-spi";
+
+		/* SPI */
+		reg = <0>; /* ignored, but necessary for SPI device */
+		spi-max-frequency = <4000000>;
+
+		/* WS2812 */
+		chain-length = <1>; /* arbitrary; change at will */
+		spi-one-frame = <0x70>;
+		spi-zero-frame = <0x40>;
+		color-mapping = <LED_COLOR_ID_GREEN
+				 LED_COLOR_ID_RED
+				 LED_COLOR_ID_BLUE>;
+	};
+};
+
+&timer0 {
+	status = "disabled";
+};
+
+&timer1 {
+	status = "disabled";
+};
+
+&timer2 {
+	status = "okay";
+};
+&timer3 {
+	status = "okay";
+};
+&pwm1{
+	status = "okay";
+	pinctrl-0 = <&esc_default>;
+	pinctrl-1 = <&esc_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+
+/ {
+	aliases {
+		rgba = &led_rgba;
+	};
+
+	esc: esc {
+		compatible = "pwm-servo";
+		pwms = <&pwm1 0 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+		min-pulse = <PWM_USEC(700)>;
+		max-pulse = <PWM_USEC(2500)>;
+		status = "okay";
+	};
+	zephyr,user {
+		io-channels = <&adc 1>;
+	};
+
+	pwm_inputs{
+		compatible = "gpio-leds";
+		throtle: throtle {
+			gpios = <&gpio0 28 GPIO_PULL_DOWN>;
+			label = "Throttle input signal";
+		};		
+	};
+};
+
+&adc {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1_6";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <NRF_SAADC_AIN1>; /* P0.02 for nRF52xx, P0.04 for nRF5340 */
+		zephyr,resolution = <12>;
+	};
+};
