@@ -937,7 +937,7 @@
 			(uuid "2ccd614e-a8d4-4e3d-8fe8-0d3a08146cee")
 		)
 		(embedded_fonts no)
-		(model "/home/sbo/git/powerMeter/hardware/pm100/MSRSF3920P-1L00-D2P0.stp"
+		(model "${KIPRJMOD}/3d/MSRSF3920P-1L00-D2P0.stp"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -2560,15 +2560,15 @@
 			(uuid "a047eae2-d27e-4f79-8182-ff109d8fe659")
 		)
 		(embedded_fonts no)
-		(model "/home/sbo/git/powerMeter/hardware/pm100/cabo_gnd_hv.step"
+		(model "${KIPRJMOD}/3d/cabo_gnd_hv.step"
 			(offset
-				(xyz 0 0 2.5)
+				(xyz 0 0 3)
 			)
 			(scale
 				(xyz 1 1 1)
 			)
 			(rotate
-				(xyz 0 0 -90)
+				(xyz -0 180 90)
 			)
 		)
 	)
@@ -2978,7 +2978,7 @@
 			(uuid "df71cb93-4a84-4f3e-92c8-bba2ae727b50")
 		)
 		(embedded_fonts no)
-		(model "/home/sbo/git/powerMeter/hardware/pm100/cabo_vcc_hv.step"
+		(model "${KIPRJMOD}/3d/cabo_vcc_hv.step"
 			(offset
 				(xyz 5.5 0 3)
 			)
@@ -3578,15 +3578,15 @@
 			(uuid "6e2f75cd-86be-4b07-9020-68e13b9ee9f3")
 		)
 		(embedded_fonts no)
-		(model "/home/sbo/git/powerMeter/hardware/pm100/cabo_vcc_hv.step"
+		(model "${KIPRJMOD}/3d/cabo_vcc_hv.step"
 			(offset
-				(xyz -5.5 0 3)
+				(xyz -5 0 2.5)
 			)
 			(scale
 				(xyz 1 1 1)
 			)
 			(rotate
-				(xyz 0 0 -90)
+				(xyz -0 -0 -90)
 			)
 		)
 	)
@@ -6082,7 +6082,7 @@
 			(uuid "2afa87b0-8b42-423f-b49a-1951cd40acfa")
 		)
 		(embedded_fonts no)
-		(model "/home/sbo/git/powerMeter/hardware/pm100/cabo_esc.step"
+		(model "${KIPRJMOD}/3d/cabo_esc.step"
 			(offset
 				(xyz 0 41.5 0)
 			)
@@ -6193,7 +6193,7 @@
 			(uuid "b193f4f0-a19d-433d-9f18-068e2872511b")
 		)
 		(embedded_fonts no)
-		(model "/home/sbo/git/powerMeter/hardware/pm100/cabo_receiver.step"
+		(model "${KIPRJMOD}/3d/cabo_receiver.step"
 			(offset
 				(xyz 0 -41.5 0)
 			)
@@ -6595,9 +6595,9 @@
 			(uuid "2c4a9a64-2bf1-40ed-8a26-c0bbd369b371")
 		)
 		(embedded_fonts no)
-		(model "/home/sbo/Dropbox/JC/Sigma Fabrica/1 - Produtos/1 - Sensores/# BIBLIOTECAS/3 - Kicad/3d_shapes/sigma.3dshapes/XIAO-nRF52840 v16.step"
+		(model "${KIPRJMOD}/3d/XIAO-nRF52840 v15.step"
 			(offset
-				(xyz 6 -12.28 0)
+				(xyz 6.11 -12.3 0)
 			)
 			(scale
 				(xyz 1 1 1)
