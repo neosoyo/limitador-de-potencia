@@ -2703,156 +2703,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Switch:SW_Push"
-			(pin_numbers
-				(hide yes)
-			)
-			(pin_names
-				(offset 1.016)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(property "Reference" "SW"
-				(at 1.27 2.54 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify left)
-				)
-			)
-			(property "Value" "SW_Push"
-				(at 0 -1.524 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" ""
-				(at 0 5.08 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Datasheet" "~"
-				(at 0 5.08 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Description" "Push button switch, generic, two pins"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_keywords" "switch normally-open pushbutton push-button"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(symbol "SW_Push_0_1"
-				(circle
-					(center -2.032 0)
-					(radius 0.508)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 0 1.27) (xy 0 3.048)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(circle
-					(center 2.032 0)
-					(radius 0.508)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 2.54 1.27) (xy -2.54 1.27)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(pin passive line
-					(at -5.08 0 0)
-					(length 2.54)
-					(name "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 5.08 0 180)
-					(length 2.54)
-					(name "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 		(symbol "Switch:SW_SP3T"
 			(pin_names
 				(offset 0)
@@ -3909,18 +3759,6 @@
 		(uuid "8fbc3b98-f0ea-4820-aae6-b12e6ddc9907")
 	)
 	(junction
-		(at 93.98 172.72)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "90bfcc74-4395-42f1-98de-2aa7be9974f2")
-	)
-	(junction
-		(at 66.04 172.72)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "94af38e6-da85-4c2b-86e3-71672f7df646")
-	)
-	(junction
 		(at 62.23 68.58)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -3931,12 +3769,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "a3c2a7d3-f358-43eb-80a7-edad4b551396")
-	)
-	(junction
-		(at 78.74 182.88)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "a48f8e8e-1c9d-4ceb-9f6e-cf743e4f6122")
 	)
 	(junction
 		(at 220.98 132.08)
@@ -3998,16 +3830,6 @@
 	)
 	(wire
 		(pts
-			(xy 66.04 172.72) (xy 78.74 172.72)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "042c6da5-144f-4e8c-a926-533803e65296")
-	)
-	(wire
-		(pts
 			(xy 245.11 83.82) (xy 246.38 83.82)
 		)
 		(stroke
@@ -4015,16 +3837,6 @@
 			(type default)
 		)
 		(uuid "05fbca9e-0f67-474f-848f-69b356a14640")
-	)
-	(wire
-		(pts
-			(xy 78.74 190.5) (xy 78.74 182.88)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "06cb7063-aed1-4371-aff7-19c6882b1fa4")
 	)
 	(wire
 		(pts
@@ -4088,16 +3900,6 @@
 	)
 	(wire
 		(pts
-			(xy 93.98 172.72) (xy 93.98 163.83)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "2771dec6-9528-4b49-8102-e1aa9fbd2a36")
-	)
-	(wire
-		(pts
 			(xy 57.15 144.78) (xy 59.69 144.78)
 		)
 		(stroke
@@ -4125,16 +3927,6 @@
 			(type default)
 		)
 		(uuid "336e4e70-2ee6-4362-877d-1be5fca4767a")
-	)
-	(wire
-		(pts
-			(xy 129.54 148.59) (xy 142.24 148.59)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "3506d703-5830-4987-892d-5f7e63bb7d8c")
 	)
 	(wire
 		(pts
@@ -4188,16 +3980,6 @@
 	)
 	(wire
 		(pts
-			(xy 93.98 163.83) (xy 99.06 163.83)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "48a14943-79f6-4b7d-b5d6-b7f931b65dbf")
-	)
-	(wire
-		(pts
 			(xy 269.24 124.46) (xy 269.24 127)
 		)
 		(stroke
@@ -4215,16 +3997,6 @@
 			(type default)
 		)
 		(uuid "50227c23-4356-4631-a156-a90c5c62d3e3")
-	)
-	(wire
-		(pts
-			(xy 99.06 172.72) (xy 93.98 172.72)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "516bd744-8f53-49f8-ac7c-69b65da97728")
 	)
 	(wire
 		(pts
@@ -4365,36 +4137,6 @@
 			(type default)
 		)
 		(uuid "8230c65d-7a8a-4fbb-8011-4597fb6a1659")
-	)
-	(wire
-		(pts
-			(xy 93.98 190.5) (xy 78.74 190.5)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8c70c89a-4975-4e9c-aac9-cdf023026cde")
-	)
-	(wire
-		(pts
-			(xy 66.04 182.88) (xy 78.74 182.88)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8dad9041-668a-44dd-922e-2795c8bcb9fb")
-	)
-	(wire
-		(pts
-			(xy 66.04 175.26) (xy 66.04 172.72)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "97eb95ca-5a8f-4930-9456-b88cc650623c")
 	)
 	(wire
 		(pts
@@ -4728,16 +4470,6 @@
 	)
 	(wire
 		(pts
-			(xy 93.98 172.72) (xy 93.98 190.5)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f6b383df-583c-4077-bc06-857503bb17e3")
-	)
-	(wire
-		(pts
 			(xy 229.87 152.4) (xy 238.76 152.4)
 		)
 		(stroke
@@ -4776,16 +4508,6 @@
 		)
 		(uuid "fcad5845-b201-408a-be06-f118e7d023b9")
 	)
-	(wire
-		(pts
-			(xy 66.04 180.34) (xy 66.04 182.88)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "fd949568-5b3d-41fa-b00a-e484dd4e647f")
-	)
 	(label "Tx"
 		(at 246.38 144.78 0)
 		(effects
@@ -4805,16 +4527,6 @@
 			(justify left bottom)
 		)
 		(uuid "6786914c-d16b-419c-9f06-62ec772c2850")
-	)
-	(label "RST"
-		(at 93.98 185.42 90)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "a295620b-c763-4031-b0dc-64772757c1a2")
 	)
 	(label "Rx"
 		(at 242.57 147.32 0)
@@ -4982,7 +4694,7 @@
 	)
 	(global_label "LED"
 		(shape input)
-		(at 129.54 153.67 0)
+		(at 129.54 146.05 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -4992,7 +4704,7 @@
 		)
 		(uuid "6bb605e5-a847-46aa-822b-13535c8503e7")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 135.9723 153.67 0)
+			(at 135.9723 146.05 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5768,73 +5480,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Connector_Generic:Conn_01x01")
-		(at 147.32 148.59 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "18288bcd-4761-4e20-b3c5-f68cf0be0981")
-		(property "Reference" "J9"
-			(at 149.86 147.3199 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "SWCLK"
-			(at 149.86 149.8599 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_D2.0mm"
-			(at 147.32 148.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 147.32 148.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Generic connector, single row, 01x01, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 147.32 148.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "be305325-bf0b-40fc-bc18-cf9c895c3f72")
-		)
-		(instances
-			(project "pm100"
-				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
-					(reference "J9")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Connector_Generic:Conn_01x03")
 		(at 205.74 83.82 90)
 		(unit 1)
@@ -6337,74 +5982,6 @@
 			(project ""
 				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
 					(reference "D3")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Switch:SW_Push")
-		(at 78.74 177.8 90)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "3bfaeacc-3b4b-45fb-9078-92b6c0eb7d6f")
-		(property "Reference" "SW3"
-			(at 71.12 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "Reset"
-			(at 73.66 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Button_Switch_SMD:SW_SPST_B3U-3100P-B"
-			(at 73.66 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 73.66 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Push button switch, generic, two pins"
-			(at 78.74 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "98132cc9-96ce-4267-96cf-5eb765da425b")
-		)
-		(pin "2"
-			(uuid "1c9d373f-631d-4c5f-8bee-92d6a728fdb9")
-		)
-		(instances
-			(project "pm100"
-				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
-					(reference "SW3")
 					(unit 1)
 				)
 			)
@@ -7646,74 +7223,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:C_Small")
-		(at 66.04 177.8 180)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "7d2eb50a-c280-41fa-a886-7c76ca2d6793")
-		(property "Reference" "C6"
-			(at 59.69 177.7937 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "0.1u"
-			(at 62.23 177.7937 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 66.04 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 66.04 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 66.04 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "0299ef37-74c3-4096-8b8d-77edba054620")
-		)
-		(pin "2"
-			(uuid "5c8a7e6b-bd72-464d-92bc-38236fb8acd5")
-		)
-		(instances
-			(project "pm100"
-				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
-					(reference "C6")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:+3V3")
 		(at 254 91.44 90)
 		(unit 1)
@@ -8538,73 +8047,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Connector_Generic:Conn_01x01")
-		(at 134.62 146.05 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "a55120d1-3b0d-4078-a9fd-46e95e1bb53e")
-		(property "Reference" "J8"
-			(at 137.16 144.7799 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "SWDIO"
-			(at 137.16 147.3199 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_D2.0mm"
-			(at 134.62 146.05 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 134.62 146.05 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Generic connector, single row, 01x01, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 134.62 146.05 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "6a1809cb-6736-4f7c-85f5-dd40979309be")
-		)
-		(instances
-			(project ""
-				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
-					(reference "J8")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:+5V")
 		(at 67.31 152.4 180)
 		(unit 1)
@@ -8940,73 +8382,6 @@
 			(project "pm100"
 				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
 					(reference "Q6")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 66.04 172.72 180)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "bf5634e3-8162-44de-9907-dd07d2581b38")
-		(property "Reference" "#PWR14"
-			(at 66.04 166.37 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 66.0399 168.91 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 66.04 172.72 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 66.04 172.72 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 66.04 172.72 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "00ecd432-7334-4817-ada4-1da32317d402")
-		)
-		(instances
-			(project "pm100"
-				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
-					(reference "#PWR14")
 					(unit 1)
 				)
 			)
@@ -9896,70 +9271,6 @@
 			(project "pm100"
 				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
 					(reference "#PWR016")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Connector_Generic:Conn_01x01")
-		(at 99.06 177.8 270)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "e1bf1f22-7715-42a8-9163-840c0e2ff63a")
-		(property "Reference" "J10"
-			(at 92.964 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "NRST"
-			(at 95.25 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_Pad_D2.0mm"
-			(at 99.06 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 99.06 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Generic connector, single row, 01x01, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 99.06 177.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "8d4ceb87-7d5f-40b2-9e3f-58125ec6b060")
-		)
-		(instances
-			(project "pm100"
-				(path "/9657f592-086d-46ac-ac3e-63524e6a6efa"
-					(reference "J10")
 					(unit 1)
 				)
 			)

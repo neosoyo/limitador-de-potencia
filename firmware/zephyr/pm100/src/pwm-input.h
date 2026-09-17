@@ -46,7 +46,7 @@ static void nrfx_gpiote_handler(nrfx_gpiote_pin_t pin, nrfx_gpiote_trigger_t tri
 
 static int pwm_input_init(void)
 {
-    int ret;
+
     nrfx_err_t status;
     uint32_t abs_pin = NRF_GPIO_PIN_MAP(0, input.pin); // Assuming port 0 for xiao_ble
 

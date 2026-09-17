@@ -28,6 +28,20 @@
 			psels = <NRF_PSEL(PWM_OUT0, 0, 2)>;
 		};
 	};
+	i2c1_default: i2c1_default {
+        	group1 {
+                	psels = <NRF_PSEL(TWIM_SDA, 0, 4)>,
+                        	<NRF_PSEL(TWIM_SCL, 0, 5)>;
+                	bias-pull-up; /* ENABLES THE INTERNAL PULL-UP RESISTORS */
+            };
+        };
+	i2c1_sleep: i2c1_sleep {
+        	group1 {
+                	psels = <NRF_PSEL(TWIM_SDA, 0, 4)>,
+                        	<NRF_PSEL(TWIM_SCL, 0, 5)>;
+                	low-power-enable;
+            	};
+        };
 
 	// spi2_default: spi2_default {
 	// 	group1 {
@@ -48,16 +62,21 @@
 };
 
 &i2c1 {
+    	status = "okay";
+        pinctrl-0 = <&i2c1_default>;
+        pinctrl-1 = <&i2c1_sleep>;
+      	pinctrl-names = "default", "sleep";
 	ina226@40 {
 		compatible = "ti,ina226";
 		reg = <0x40>;
 		current-lsb-microamps = <500>;
-		rshunt-micro-ohms = <5000>;
+		rshunt-micro-ohms = <1000>;
 		avg-count = <16>;
 		vbus-conversion-time-us = <332>;
 		vshunt-conversion-time-us = <332>;
 		status = "okay";
 	};
+
 };
 
 &spi2 {
@@ -125,7 +144,7 @@
 		throtle: throtle {
 			gpios = <&gpio0 28 GPIO_PULL_DOWN>;
 			label = "Throttle input signal";
-		};		
+		};
 	};
 };
 

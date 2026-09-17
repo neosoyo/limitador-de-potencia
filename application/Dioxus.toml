@@ -1,0 +1,4 @@
+[bundle]
+identifier = "sbo.pm100.config"
+publisher = "sbo"
+icon = ["assets/icon.svg"]

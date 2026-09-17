@@ -1,7 +1,7 @@
 #ifndef __ADRC_CONTROL_LAW_H
 #define __ADRC_CONTROL_LAW_H
 
-#include "control_law.h"
+#include "lipe/control_law.h"
 
 struct adrc_control_law {
     struct siso_control_law interface;
