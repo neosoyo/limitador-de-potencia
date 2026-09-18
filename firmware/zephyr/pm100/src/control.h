@@ -5,7 +5,7 @@
 #include <zephyr/device.h>
 #include <zephyr/init.h>
 
-#define CONTROL_PERIOD_US 2000 // 500 Hz control loop period
+#define CONTROL_PERIOD_US 300 // 500 Hz control loop period
 
 enum ctrl_state {
     READY,

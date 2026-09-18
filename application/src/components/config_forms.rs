@@ -148,7 +148,7 @@ pub fn ConfigForms(props: ConfigFormsProps) -> Element {
                 }
 
                 div { class: "flex flex-col gap-4 flex-grow",
-                    p { style: "color: #737373; line-height: 1.5; font-size: 10px; margin: 0 0 12px 0;",
+                    p { style: "color: var(--text-muted); line-height: 1.5; font-size: 12px; margin: 0 0 12px 0;",
                         "Este PIN de 6 dígitos é armazenado no dispositivo como senha de pareamento BLE. Defina-o aqui pela conexão serial USB."
                     }
 
@@ -160,7 +160,7 @@ pub fn ConfigForms(props: ConfigFormsProps) -> Element {
                             maxlength: "6",
                             placeholder: "123456",
                             class: "text-input text-center",
-                            style: "font-size: 18px; letter-spacing: 6px; padding-left: 12px; font-weight: bold; border-color: #262626;",
+                            style: "font-size: 21px; letter-spacing: 6px; padding-left: 12px; font-weight: bold; border-color: #262626;",
                             oninput: move |e| {
                                 let clean = e.value().chars().filter(|c| c.is_numeric()).collect::<String>();
                                 pin_code.set(clean);
