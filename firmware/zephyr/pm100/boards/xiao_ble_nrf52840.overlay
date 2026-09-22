@@ -15,6 +15,7 @@
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/sensor/ina226.h>
 #include <zephyr/dt-bindings/led/led.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
 
 &pinctrl {
 
@@ -63,6 +64,7 @@
 
 &i2c1 {
     	status = "okay";
+    	clock-frequency = <I2C_BITRATE_FAST>; /* 400 kHz: 3 register reads fit within the 1 ms control tick */
         pinctrl-0 = <&i2c1_default>;
         pinctrl-1 = <&i2c1_sleep>;
       	pinctrl-names = "default", "sleep";
@@ -71,7 +73,11 @@
 		reg = <0x40>;
 		current-lsb-microamps = <500>;
 		rshunt-micro-ohms = <1000>;
-		avg-count = <16>;
+		/* 1 kHz control loop (1 ms) requires a full conversion in <= 1 ms.
+		 * Total conversion = avg-count x (vbus + vshunt):
+		 * 1 x (332 + 332) us = 664 us -> ~1.5 kHz update rate, >= 1 kHz loop.
+		 */
+		avg-count = <1>;
 		vbus-conversion-time-us = <332>;
 		vshunt-conversion-time-us = <332>;
 		status = "okay";

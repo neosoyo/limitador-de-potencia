@@ -43,7 +43,7 @@ $$b_0 = 50.0\,\frac{\text{W}}{\text{s}^2\cdot\mu\text{s}}$$
 Using **Gao's Bandwidth Parameterization** for a second-order system, we select a closed-loop controller bandwidth $w_c$ that balances rapid command tracking with high noise rejection.
 
 1.  **Selection of Controller Bandwidth ($w_c$):**
-    We select $w_c \approx 20\,\text{rad/s}$ (which is 2 times faster than the open-loop motor bandwidth of $10\,\text{rad/s}$ and well below the Nyquist limit of the 500Hz control loop).
+    We select $w_c \approx 20\,\text{rad/s}$ (which is 2 times faster than the open-loop motor bandwidth of $10\,\text{rad/s}$ and well below the Nyquist limit of the 1kHz control loop).
 2.  **Proportional Gain ($K_p$):**
     $$K_p = w_c^2 = 20^2 = 400.0$$
 3.  **Derivative Gain ($K_d$):**
@@ -55,7 +55,7 @@ Using **Gao's Bandwidth Parameterization** for a second-order system, we select 
 
 ## 4. Extended State Observer Tuning ($w_o$)
 
-The **Linear Extended State Observer (LESO)** is responsible for dynamically estimating the measured power $z_1(t) \approx P(t)$, its derivative $z_2(t) \approx \dot{P}(t)$, and the total system disturbance state $z_3(t) \approx f(t)$ at a 500Hz sampling rate.
+The **Linear Extended State Observer (LESO)** is responsible for dynamically estimating the measured power $z_1(t) \approx P(t)$, its derivative $z_2(t) \approx \dot{P}(t)$, and the total system disturbance state $z_3(t) \approx f(t)$ at a 1kHz sampling rate.
 
 *   **Bandwidth Rule of Thumb:** To ensure fast and stable estimation without phase lag, the observer bandwidth $w_o$ should be set 5 times faster than the controller bandwidth:
     $$w_o = 5 \times w_c = 100.0\,\text{rad/s}$$

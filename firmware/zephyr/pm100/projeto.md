@@ -10,7 +10,7 @@ The system is designed around **three concurrent threads** to handle hard real-t
 
 ```
        +--------------------------------------------------------+
-       |                  Thread 1: Control (500Hz)             |
+       |                  Thread 1: Control (1kHz)              |
        |  - Read INA226 Power        - Read Input PWM Pulse     |
        |  - Compute ADRC Law         - Safe Min-Limit PWM Out   |
        +---------------------------+----------------------------+
@@ -35,7 +35,7 @@ The system is designed around **three concurrent threads** to handle hard real-t
 
 ## 1. Thread Specifications
 
-### Thread 1: Control Loop (500Hz / Period: 2ms)
+### Thread 1: Control Loop (1kHz / Period: 1ms)
 *   **Purpose:** Perform real-time power limiting to prevent motor/battery overload while respecting the pilot's throttle commands.
 *   **Control Logic:**
     1.  Read the active throttle input signal ($PWM_{in}$) in microseconds.
@@ -55,14 +55,15 @@ The system is designed around **three concurrent threads** to handle hard real-t
     3.  **Bluetooth BLE:** Broadcasts/transmits the same telemetry buffer packet at 10Hz.
 *   Data Format (CSV):
     ```csv
-    <time_ms>,<power_w>,<current_a>,<voltage_v>,<total_consumption_j>,<pwm_input_us>,<pwm_output_us>,<pwm_control_us>,<control_state>
+    <time_ms>,<peak_power_w>,<current_a>,<voltage_v>,<total_consumption_j>,<pwm_input_us>,<pwm_output_us>,<pwm_control_us>,<control_state>
     ```
-    Where `<control_state>` is represented as an integer:
+    Where `<peak_power_w>` is the peak power measured since boot, in Watts, and `<control_state>` is represented as an integer:
     * `0` = **`READY`**
     * `1` = **`LIMITING_POWER`**
     * `2` = **`ERROR_NO_INPUT`**
     * `3` = **`ERROR_NO_BATTERY`**
     * `4` = **`BLINK`**
+    * `5` = **`LEARNING`**
 
     *Example Output:*
     ```csv
@@ -83,6 +84,7 @@ The system is designed around **three concurrent threads** to handle hard real-t
 | **ERROR_NO_INPUT** | `2` | $PWM_{in} < 900\,\mu\text{s}$ or $PWM_{in} > 2000\,\mu\text{s}$ | **Red** (e.g., `#FF0000`) | **2 Hz** | Blinks every 500ms (250ms ON, 250ms OFF) |
 | **ERROR_NO_BATTERY** | `3` | $Voltage < 5.0\,\text{V}$ | **Red** (e.g., `#FF0000`) | **2 Hz** | Blinks every 500ms (250ms ON, 250ms OFF) |
 | **BLINK** | `4` | Triggered via CLI or BLE, overrides all other states | **White** (e.g., `#FFFFFF`) | **5 Hz** | Blinks every 200ms (100ms ON, 100ms OFF) for 5 seconds |
+| **LEARNING** | `5` | ADRC b0 learning mode active ($b_0 = 0$) | **Orange** (e.g., `#FF7F00`) | **4 Hz** | Blinks every 250ms (125ms ON, 125ms OFF) |
 
 ---
 
@@ -127,9 +129,10 @@ The shell interface is accessible over the default USB serial terminal. It suppo
 
 ### Configuration Commands
 
-#### `update_adrc_gains <dt> <wo> <b0> <kp> <kd>`
+#### `update_adrc_gains <wo> <b0> <kp> <kd>`
 *   **Description:** Updates the active ADRC controller gains and saves them directly to NVS.
-*   **Arguments:** Floating-point parameters for $dt, w_o, b_0, K_p, K_d$.
+*   **Arguments:** Floating-point parameters for $w_o, b_0, K_p, K_d$. The sampling time step is fixed at 1 ms by the 1 kHz control loop.
+*   **b0 Learning Mode:** Passing `0` as `<b0>` enables the identification mode. The controller passes the pilot throttle through (with a 1.2× target-power safety cap) while collecting moving averages of power in the 10-50% and 75-100% throttle bands. Three alternating throttle steps (low→high, high→low, low→high) are captured; each step's time constant $\tau_m$ is estimated with a log-linear least-squares fit, and the median of the three estimates is used. The controller then derives and saves $b_0 = \Delta P/(\tau_m^2 \Delta U)$, $w_c = 2/\tau_m$, $K_p = w_c^2$, $K_d = 2 w_c$, and $w_o = 5 w_c$. Inconsistent step estimates restart the learning automatically. The default `b0 = 0` triggers this on first boot.
 
 #### `target <power_watts>`
 *   **Description:** Sets the active power target limit.
@@ -195,7 +198,7 @@ $$\text{Device Name} = \text{team\_name}\_\text{team\_number}\_\text{MAC\_last\_
 | **Team Name** | Team Name | `E20A1A04-473B-4444-9F6D-BE083A8BD92D` | `READ` | UTF-8 encoded string (up to 32 bytes, null-terminated) *(Requires Encryption)* | Up to 32 Bytes |
 | **Team Number** | Team Number | `E20A1A05-473B-4444-9F6D-BE083A8BD92D` | `READ` | `uint32_t` representing the unique team index *(Requires Encryption)* | 4 Bytes |
 | **White Blink Cmd**| White Blink Trigger | `E20A1A06-473B-4444-9F6D-BE083A8BD92D` | `WRITE` | 1-byte Boolean (`0x01` to trigger 10x white blinks) *(Requires Encryption)* | 1 Byte |
-| **Power** | Power | `E20A1A08-473B-4444-9F6D-BE083A8BD92D` | `NOTIFY`, `READ` | `uint32_t` in Milliwatts (mW) (e.g. $600.0\text{W} \rightarrow 600000$) *(Requires Encryption)* | 4 Bytes |
+| **Peak Power** | Peak Power (since boot) | `E20A1A08-473B-4444-9F6D-BE083A8BD92D` | `NOTIFY`, `READ` | `uint32_t` in Milliwatts (mW) representing the peak power measured since boot (e.g. $600.0\text{W} \rightarrow 600000$) *(Requires Encryption)* | 4 Bytes |
 | **Control State** | Control State | `E20A1A07-473B-4444-9F6D-BE083A8BD92D` | `NOTIFY`, `READ` | `uint8_t` representing the `ctrl_state` enum value *(Requires Encryption)* | 1 Byte |
 
 ### Bandwidth Comparison & Optimization

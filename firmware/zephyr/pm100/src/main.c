@@ -101,31 +101,9 @@ void led_thread_handler(void *p1, void *p2, void *p3)
     bool toggle_state = false;
 
     while (1) {
-        // Retrieve controller telemetry thread-safely to evaluate state
+        // Retrieve control state computed by the 1 kHz control loop
         k_mutex_lock(&g_telemetry_mutex, K_FOREVER);
-        int pwm_in = g_telemetry.pwm_input_us;
-        float voltage = g_telemetry.voltage_v;
-        int pwm_out = g_telemetry.pwm_output_us;
-        k_mutex_unlock(&g_telemetry_mutex);
-
-        enum ctrl_state state;
-        int64_t now = k_uptime_get();
-
-        if (now - g_blink_start_time < 5000) {
-            state = BLINK;
-        } else if (pwm_in < 900 || pwm_in > 2000) {
-            state = ERROR_NO_INPUT;
-        } else if (voltage < 5.0f) {
-            state = ERROR_NO_BATTERY;
-        } else if (pwm_out < pwm_in) {
-            state = LIMITING_POWER;
-        } else {
-            state = READY;
-        }
-
-        // Update global telemetry state
-        k_mutex_lock(&g_telemetry_mutex, K_FOREVER);
-        g_telemetry.state = state;
+        enum ctrl_state state = g_telemetry.state;
         k_mutex_unlock(&g_telemetry_mutex);
 
         int sleep_ms = 250;
@@ -161,6 +139,11 @@ void led_thread_handler(void *p1, void *p2, void *p3)
                     color.r = 0x20; // Red
                     sleep_ms = 250; // 2Hz blink (250ms ON)
                     break;
+                case LEARNING:
+                    color.r = 0x20; // Orange
+                    color.g = 0x0A;
+                    sleep_ms = 125; // 4Hz blink (125ms ON)
+                    break;
                 }
             } else {
                 switch (state) {
@@ -173,6 +156,9 @@ void led_thread_handler(void *p1, void *p2, void *p3)
                 case ERROR_NO_INPUT:
                 case ERROR_NO_BATTERY:
                     sleep_ms = 250; // 2Hz blink (250ms OFF)
+                    break;
+                case LEARNING:
+                    sleep_ms = 125; // 4Hz blink (125ms OFF)
                     break;
                 }
             }
@@ -251,27 +237,30 @@ static int cmd_update_adrc_gains(const struct shell *sh, size_t argc, char **arg
 {
     if (argc == 1) {
         k_mutex_lock(&g_config_mutex, K_FOREVER);
-        shell_print(sh, "Active ADRC Gains: dt=%0.4f, w0=%0.1f, b0=%0.2f, kp=%0.2f, kd=%0.2f",
+        shell_print(sh, "Active ADRC Gains: dt=%0.4f (fixed), w0=%0.1f, b0=%0.2f, kp=%0.2f, kd=%0.2f",
                     g_config.dt, g_config.wo, g_config.b0, g_config.kp, g_config.kd);
         k_mutex_unlock(&g_config_mutex);
         return 0;
-    } else if (argc == 6) {
-        float dt = strtof(argv[1], NULL);
-        float wo = strtof(argv[2], NULL);
-        float b0 = strtof(argv[3], NULL);
-        float kp = strtof(argv[4], NULL);
-        float kd = strtof(argv[5], NULL);
+    } else if (argc == 5) {
+        float wo = strtof(argv[1], NULL);
+        float b0 = strtof(argv[2], NULL);
+        float kp = strtof(argv[3], NULL);
+        float kd = strtof(argv[4], NULL);
 
-        int ret = control_update_gains(dt, wo, b0, kp, kd);
+        int ret = control_update_gains(wo, b0, kp, kd);
         if (ret < 0) {
             shell_error(sh, "Failed to update ADRC gains: %d", ret);
             return ret;
         }
 
-        shell_print(sh, "ADRC gains successfully updated and stored in NVS.");
+        if (b0 == 0.0f) {
+            shell_print(sh, "b0 = 0: learning mode enabled. Hold throttle at 10-50%%, then slam to >75%% and hold.");
+        } else {
+            shell_print(sh, "ADRC gains successfully updated and stored in NVS.");
+        }
         return 0;
     } else {
-        shell_error(sh, "Invalid arguments. Usage: 'pm100 gains' or 'pm100 gains <dt> <wo> <b0> <kp> <kd>'");
+        shell_error(sh, "Invalid arguments. Usage: 'pm100 gains' or 'pm100 gains <wo> <b0> <kp> <kd>'");
         return -EINVAL;
     }
 }
@@ -428,6 +417,43 @@ static int cmd_readings(const struct shell *sh, size_t argc, char **argv)
     return 0;
 }
 
+static int cmd_learn(const struct shell *sh, size_t argc, char **argv)
+{
+    switch (g_learning_stage) {
+    case LEARNING_STAGE_IDLE:
+        shell_print(sh, "Learning is not active.");
+        shell_print(sh, "Start it with: pm100 gains <wo> 0 <kp> <kd>");
+        break;
+    case LEARNING_STAGE_LOW_BAND:
+        shell_print(sh, "Learning: hold throttle between 10%% and 50%% (1100-1500 us).");
+        break;
+    case LEARNING_STAGE_STEP_HIGH:
+        shell_print(sh, "Learning: slam throttle above 75%% (1750-2000 us) and hold.");
+        break;
+    case LEARNING_STAGE_STEP_LOW:
+        shell_print(sh, "Learning: return throttle to 10%%-50%% and hold.");
+        break;
+    case LEARNING_STAGE_ESTIMATING:
+        shell_print(sh, "Learning: estimating parameters from the captured steps...");
+        break;
+    case LEARNING_STAGE_DONE: {
+        k_mutex_lock(&g_config_mutex, K_FOREVER);
+        float wo = g_config.wo;
+        float b0 = g_config.b0;
+        float kp = g_config.kp;
+        float kd = g_config.kd;
+        k_mutex_unlock(&g_config_mutex);
+        shell_print(sh, "Learning complete: wo=%.2f, b0=%.4f, kp=%.2f, kd=%.2f", wo, b0, kp, kd);
+        shell_print(sh, "To relearn: pm100 gains %.2f 0 %.2f %.2f", wo, kp, kd);
+        break;
+    }
+    default:
+        shell_print(sh, "Unknown learning stage.");
+        break;
+    }
+    return 0;
+}
+
 static int cmd_blink(const struct shell *sh, size_t argc, char **argv)
 {
     g_blink_start_time = k_uptime_get();
@@ -437,7 +463,8 @@ static int cmd_blink(const struct shell *sh, size_t argc, char **argv)
 
 /* Define master pm100 subcommands */
 SHELL_STATIC_SUBCMD_SET_CREATE(pm100_subcmds,
-    SHELL_CMD_ARG(gains, NULL, "Get active gains, or set: <dt> <wo> <b0> <kp> <kd>", cmd_update_adrc_gains, 1, 5),
+    SHELL_CMD_ARG(gains, NULL, "Get active gains, or set: <wo> <b0> <kp> <kd>", cmd_update_adrc_gains, 1, 4),
+    SHELL_CMD_ARG(learn, NULL, "Show b0 learning instructions/status", cmd_learn, 1, 0),
     SHELL_CMD_ARG(target, NULL, "Get active power target, or set: <power_watts>", cmd_target, 1, 1),
     SHELL_CMD_ARG(shunt, NULL, "Get active shunt resistor (mOhm), or set: <value_mohm>", cmd_shunt, 1, 1),
     SHELL_CMD_ARG(sample, NULL, "Print current telemetry CSV readings once", cmd_readings, 1, 0),

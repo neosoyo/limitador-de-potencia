@@ -48,7 +48,7 @@ static uint16_t g_ble_voltage = 0;   // In Millivolts (mV)
 static uint16_t g_ble_current = 0;   // In Milliamperes (mA)
 static uint32_t g_ble_energy = 0;    // In Joules (J)
 static uint16_t g_ble_pwms[3] = {1000, 1000, 1000}; // Array of [PWM_in, PWM_out, PWM_ctrl] in us
-static uint32_t g_ble_power = 0;     // In Milliwatts (mW)
+static uint32_t g_ble_power = 0;     // Peak power since boot, in Milliwatts (mW)
 static uint8_t g_ble_control_state = 0; // enum ctrl_state
 
 /* Dynamic Device Name Buffer */
@@ -241,7 +241,7 @@ BT_GATT_SERVICE_DEFINE(pm100_svc,
         BT_GATT_CHRC_WRITE,
         BT_GATT_PERM_WRITE_ENCRYPT, NULL, write_white_blink, NULL),
 
-    /* 9. Power Characteristic (Custom 128-bit UUID, ENCRYPT permissions) */
+    /* 9. Peak Power Characteristic (Custom 128-bit UUID, ENCRYPT permissions) */
     BT_GATT_CHARACTERISTIC(&power_chrc_uuid.uuid,
         BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
         BT_GATT_PERM_READ_ENCRYPT, read_power, NULL, NULL),
@@ -407,7 +407,7 @@ void ble_telemetry_update(const struct system_telemetry *telem)
     g_ble_pwms[0] = (uint16_t)telem->pwm_input_us;
     g_ble_pwms[1] = (uint16_t)telem->pwm_output_us;
     g_ble_pwms[2] = (uint16_t)telem->pwm_control_us;
-    g_ble_power = (uint32_t)(telem->power_w * 1000.0f);   // W -> mW
+    g_ble_power = (uint32_t)(telem->power_w * 1000.0f);   // Peak W -> mW
     g_ble_control_state = (uint8_t)telem->state;
 
     /* Issue notifications dynamically to paired peers if subscribed */
