@@ -29,6 +29,12 @@ enum RecordingState {
     Paused,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LeftTab {
+    Plot,
+    Config,
+}
+
 fn main() {
     dioxus::LaunchBuilder::new()
         .with_cfg(desktop! {
@@ -61,6 +67,9 @@ fn app() -> Element {
 
     // Active UI Theme selection (Default: Dark theme)
     let mut is_dark_theme = use_signal(|| true);
+
+    // Active left-column tab (Plot vs. the 3 configuration boxes)
+    let mut left_tab = use_signal(|| LeftTab::Plot);
 
     let device_conn = use_signal(|| {
         let conn: Arc<dyn DeviceConnection> = Arc::new(UsbConnection::auto());
@@ -414,7 +423,7 @@ fn app() -> Element {
                 // Recording status indicator (REC / PAUSED + filename)
                 if *recording_state.read() != RecordingState::Stopped {
                     span {
-                        style: "font-size: 9px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: #ef4444;",
+                        style: "font-size: 11px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: #ef4444;",
                         if *recording_state.read() == RecordingState::Recording {
                             "GRAVANDO: {record_path}"
                         } else {
@@ -434,13 +443,24 @@ fn app() -> Element {
                 div {
                     class: "desktop-grid",
 
-                        // Column 1 (Plot + Config forms below it) - 3fr width
+                        // Column 1 (Tabbed: Plot / Config forms) - 3fr width
                         div {
                             class: "flex flex-col gap-6",
-                            style: "grid-column: span 1;",
-                            StreamPlot {
-                                history: telemetry_history.cloned(),
-                                max_power: max_power.cloned(),
+                            style: "grid-column: span 1; min-height: 0;",
+
+                            // Tab bar switching between the plot and the 3 config boxes
+                            div {
+                                class: "tab-bar",
+                                button {
+                                    class: if *left_tab.read() == LeftTab::Plot { "tab tab-active" } else { "tab" },
+                                    onclick: move |_| left_tab.set(LeftTab::Plot),
+                                    "Gráfico"
+                                }
+                                button {
+                                    class: if *left_tab.read() == LeftTab::Config { "tab tab-active" } else { "tab" },
+                                    onclick: move |_| left_tab.set(LeftTab::Config),
+                                    "Configuração"
+                                }
                             }
 
                             // Device status readout (updated from the telemetry stream)
@@ -450,21 +470,31 @@ fn app() -> Element {
                                 div { class: "status-value {status_class}", "{status_label}" }
                             }
 
-                            ConfigForms {
-                                target_power,
-                                team_number,
-                                team_name,
-                                pin_code,
-                                adrc_dt,
-                                adrc_wo,
-                                adrc_b0,
-                                adrc_kp,
-                                adrc_kd,
-                                on_update_adrc: update_adrc_action,
-                                on_update_target: update_target_action,
-                                on_update_team: update_team_action,
-                                on_update_pin: update_pin_action,
-                            }
+                            {match *left_tab.read() {
+                                LeftTab::Plot => rsx! {
+                                    StreamPlot {
+                                        history: telemetry_history.cloned(),
+                                        max_power: max_power.cloned(),
+                                    }
+                                },
+                                LeftTab::Config => rsx! {
+                                    ConfigForms {
+                                        target_power,
+                                        team_number,
+                                        team_name,
+                                        pin_code,
+                                        adrc_dt,
+                                        adrc_wo,
+                                        adrc_b0,
+                                        adrc_kp,
+                                        adrc_kd,
+                                        on_update_adrc: update_adrc_action,
+                                        on_update_target: update_target_action,
+                                        on_update_team: update_team_action,
+                                        on_update_pin: update_pin_action,
+                                    }
+                                },
+                            }}
                         }
 
                         // Column 2 (Metrics on top + Level bars stacked below) - 1fr width

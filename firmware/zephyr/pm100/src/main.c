@@ -99,7 +99,6 @@ void led_thread_handler(void *p1, void *p2, void *p3)
     LOG_INF("LED Status Thread (Thread 3) started");
 
     bool toggle_state = false;
-
     while (1) {
         // Retrieve control state computed by the 1 kHz control loop
         k_mutex_lock(&g_telemetry_mutex, K_FOREVER);

@@ -175,7 +175,7 @@ pub fn StreamPlot(props: StreamPlotProps) -> Element {
                                 x: "{padding_left - 8.0}",
                                 y: "{y + 3.0}",
                                 fill: "var(--text-muted)",
-                                font_size: "8",
+                                font_size: "10",
                                 text_anchor: "end",
                                 "{pwm_val}us"
                             }
@@ -193,7 +193,7 @@ pub fn StreamPlot(props: StreamPlotProps) -> Element {
                                 x: "{watts_axis_x + 8.0}",
                                 y: "{y + 3.0}",
                                 fill: "var(--power-stroke)",
-                                font_size: "8",
+                                font_size: "10",
                                 text_anchor: "start",
                                 "{watts_val}W"
                             }
@@ -211,7 +211,7 @@ pub fn StreamPlot(props: StreamPlotProps) -> Element {
                                 x: "{joules_axis_x + 8.0}",
                                 y: "{y + 3.0}",
                                 fill: "var(--joules-stroke)",
-                                font_size: "8",
+                                font_size: "10",
                                 text_anchor: "start",
                                 "{joules_val}J"
                             }
@@ -313,7 +313,7 @@ pub fn StreamPlot(props: StreamPlotProps) -> Element {
                         x: "{(right_chart_edge + padding_left) / 2.0}",
                         y: "{height / 2.0}",
                         fill: "var(--text-subtle)",
-                        font_size: "11",
+                        font_size: "13",
                         text_anchor: "middle",
                         "Telemetria Desconectada"
                     }

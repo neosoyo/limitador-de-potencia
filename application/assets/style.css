@@ -7,8 +7,8 @@
     --border-color: #1a1a1a;
     --border-subtle: #171717;
     --text-color: #ffffff;
-    --text-muted: #737373;
-    --text-subtle: #525252;
+    --text-muted: #d4d4d4;
+    --text-subtle: #a3a3a3;
     --btn-bg: #0a0a0a;
     --btn-hover: #171717;
     --btn-primary-bg: #ffffff;
@@ -33,8 +33,8 @@
     --border-color: #e2e8f0;
     --border-subtle: #f1f5f9;
     --text-color: #0f172a;
-    --text-muted: #64748b;
-    --text-subtle: #94a3b8;
+    --text-muted: #334155;
+    --text-subtle: #64748b;
     --btn-bg: #f1f5f9;
     --btn-hover: #e2e8f0;
     --btn-primary-bg: #0f172a;
@@ -54,11 +54,15 @@
 /* Base resets & styles mapped to current active theme variables */
 body {
     margin: 0;
-    font-family: monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size: 12px;
+    font-family:
+        monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+    font-size: 14px;
     user-select: none;
     overflow: hidden;
-    transition: background-color 0.15s, color 0.15s;
+    transition:
+        background-color 0.15s,
+        color 0.15s;
 }
 
 .app-container {
@@ -68,7 +72,9 @@ body {
     flex-direction: column;
     background-color: var(--bg-color);
     color: var(--text-color);
-    transition: background-color 0.15s, color 0.15s;
+    transition:
+        background-color 0.15s,
+        color 0.15s;
 }
 
 /* Header */
@@ -80,10 +86,12 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 .brand-title {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: bold;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -92,7 +100,7 @@ body {
     transition: color 0.15s;
 }
 .brand-subtitle {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     letter-spacing: 1px;
     text-transform: uppercase;
@@ -114,12 +122,15 @@ body {
     color: var(--text-muted);
     border: 1px solid var(--border-color);
     padding: 6px 14px;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     letter-spacing: 1.5px;
     text-transform: uppercase;
     cursor: pointer;
-    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        color 0.15s,
+        border-color 0.15s;
     font-family: monospace;
 }
 .btn:hover {
@@ -143,6 +154,46 @@ body {
     opacity: 0.5;
 }
 
+/* Tab bar for switching left-column views */
+.tab-bar {
+    display: flex;
+    align-self: flex-start;
+    border: 1px solid var(--border-color);
+    transition: border-color 0.15s;
+}
+.tab {
+    background-color: var(--btn-bg);
+    color: var(--text-muted);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    padding: 8px 20px;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: monospace;
+    transition:
+        background-color 0.15s,
+        color 0.15s;
+}
+.tab:last-child {
+    border-right: none;
+}
+.tab:hover {
+    background-color: var(--btn-hover);
+    color: var(--text-color);
+}
+.tab-active {
+    background-color: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+}
+.tab-active:hover {
+    background-color: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+    opacity: 0.85;
+}
+
 /* Workspaces */
 .main-content {
     flex-grow: 1;
@@ -161,7 +212,10 @@ body {
 }
 .config-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr); /* STRICTLY 3 columns horizontally below the plot! */
+    grid-template-columns: repeat(
+        3,
+        1fr
+    ); /* STRICTLY 3 columns horizontally below the plot! */
     gap: 24px;
     width: 100%;
 }
@@ -173,11 +227,13 @@ body {
     padding: 24px;
     display: flex;
     flex-direction: column;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
     box-sizing: border-box;
 }
 .card-title {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: bold;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -185,7 +241,9 @@ body {
     padding-bottom: 6px;
     margin-bottom: 16px;
     border-bottom: 1px solid var(--border-color);
-    transition: border-color 0.15s, color 0.15s;
+    transition:
+        border-color 0.15s,
+        color 0.15s;
 }
 
 /* Device status strip */
@@ -197,27 +255,39 @@ body {
     border: 1px solid var(--border-color);
     padding: 12px 20px;
     box-sizing: border-box;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 .status-label {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: var(--text-muted);
 }
 .status-value {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: bold;
     letter-spacing: 1px;
     text-transform: uppercase;
     transition: color 0.15s;
 }
-.status-ready { color: #22c55e; }
-.status-limiting { color: #f97316; }
-.status-error { color: #ef4444; }
-.status-blink { color: #3b82f6; }
-.status-unknown { color: var(--text-subtle); }
+.status-ready {
+    color: #22c55e;
+}
+.status-limiting {
+    color: #f97316;
+}
+.status-error {
+    color: #ef4444;
+}
+.status-blink {
+    color: #3b82f6;
+}
+.status-unknown {
+    color: var(--text-subtle);
+}
 .status-item {
     display: flex;
     flex-direction: column;
@@ -237,13 +307,15 @@ body {
     background-color: var(--row-bg);
     border: 1px solid var(--border-color);
     margin-bottom: 8px;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 .metric-row:hover {
     background-color: var(--row-hover);
 }
 .metric-label {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     letter-spacing: 1px;
     text-transform: uppercase;
@@ -251,7 +323,7 @@ body {
     transition: color 0.15s;
 }
 .metric-value {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: bold;
     color: var(--text-color);
     transition: color 0.15s;
@@ -292,21 +364,25 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 .bar-fill {
     width: 100%;
-    transition: height 0.08s ease-out, width 0.08s ease-out;
+    transition:
+        height 0.08s ease-out,
+        width 0.08s ease-out;
 }
 .bar-v-value {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-muted);
     font-weight: bold;
     margin-bottom: 8px;
     transition: color 0.15s;
 }
 .bar-v-label {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: bold;
     color: var(--text-muted);
     margin-top: 8px;
@@ -321,7 +397,7 @@ body {
 .bar-h-info {
     display: flex;
     justify-content: space-between;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: bold;
     color: var(--text-muted);
     transition: color 0.15s;
@@ -335,7 +411,9 @@ body {
     width: 100%;
     background-color: var(--row-bg);
     border: 1px solid var(--border-color);
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 
 /* Plots */
@@ -353,7 +431,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -371,17 +449,35 @@ body {
 }
 
 /* Legend items color maps loaded from theme variables */
-.bg-pwm-stroke { background-color: var(--pwm-stroke); }
-.bg-ctrl-stroke { background-color: var(--ctrl-stroke); }
-.bg-out-stroke { background-color: var(--out-stroke); }
-.bg-power-stroke { background-color: var(--power-stroke); }
-.bg-max-power-stroke { background-color: var(--max-power-stroke); }
-.bg-joules-stroke { background-color: var(--joules-stroke); }
+.bg-pwm-stroke {
+    background-color: var(--pwm-stroke);
+}
+.bg-ctrl-stroke {
+    background-color: var(--ctrl-stroke);
+}
+.bg-out-stroke {
+    background-color: var(--out-stroke);
+}
+.bg-power-stroke {
+    background-color: var(--power-stroke);
+}
+.bg-max-power-stroke {
+    background-color: var(--max-power-stroke);
+}
+.bg-joules-stroke {
+    background-color: var(--joules-stroke);
+}
 
 /* Level indicator color maps loaded from theme variables */
-.bg-level-in { background-color: var(--level-in); }
-.bg-level-ctrl { background-color: var(--level-ctrl); }
-.bg-level-out { background-color: var(--level-out); }
+.bg-level-in {
+    background-color: var(--level-in);
+}
+.bg-level-ctrl {
+    background-color: var(--level-ctrl);
+}
+.bg-level-out {
+    background-color: var(--level-out);
+}
 
 /* Config Forms & inputs */
 .form-row {
@@ -391,7 +487,7 @@ body {
     gap: 6px;
 }
 .form-label {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 1.5px;
@@ -403,9 +499,12 @@ body {
     border: 1px solid var(--border-color);
     color: var(--text-color);
     padding: 6px 10px;
-    font-size: 12px;
+    font-size: 14px;
     font-family: monospace;
-    transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+    transition:
+        border-color 0.15s,
+        background-color 0.15s,
+        color 0.15s;
 }
 .text-input:focus {
     outline: none;
@@ -432,12 +531,14 @@ body {
     color: var(--text-muted);
     border: 1px solid var(--border-color);
     padding: 10px 12px;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.6;
     letter-spacing: 0.5px;
     box-sizing: border-box;
     pointer-events: none;
-    transition: opacity 0.12s ease-out, visibility 0.12s ease-out;
+    transition:
+        opacity 0.12s ease-out,
+        visibility 0.12s ease-out;
 }
 .tooltip-wrap:hover .tooltip {
     visibility: visible;
@@ -452,7 +553,7 @@ body {
 .slider-info {
     display: flex;
     justify-content: space-between;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -461,28 +562,32 @@ body {
 }
 .slider-value {
     color: var(--text-color);
-    font-size: 11px;
+    font-size: 13px;
     transition: color 0.15s;
 }
 
 /* Custom local range sliders reset */
-input[type='range'] {
+input[type="range"] {
     -webkit-appearance: none;
     width: 100%;
     height: 4px;
     background: var(--row-bg);
     border: 1px solid var(--border-color);
     outline: none;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
-input[type='range']::-webkit-slider-thumb {
+input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 12px;
     height: 12px;
     background: var(--text-color);
     border: 1px solid var(--text-color);
     cursor: pointer;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 
 /* Phone Frame Simulator */
@@ -496,7 +601,9 @@ input[type='range']::-webkit-slider-thumb {
     flex-direction: column;
     gap: 20px;
     align-self: center;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 .phone-notch {
     width: 110px;
@@ -506,7 +613,9 @@ input[type='range']::-webkit-slider-thumb {
     border-left: 1px solid var(--border-color);
     border-right: 1px solid var(--border-color);
     margin: -24px auto 8px auto;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 .phone-drawer {
     display: flex;
@@ -516,23 +625,54 @@ input[type='range']::-webkit-slider-thumb {
     border: 1px solid var(--border-color);
     padding: 12px 16px;
     gap: 16px;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
 
 /* Common sizing utilities */
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.gap-4 { gap: 16px; }
-.gap-6 { gap: 24px; }
-.flex-grow { flex-grow: 1; }
-.h-full { height: 100%; }
-.w-full { width: 100%; }
-.mt-2 { margin-top: 8px; }
-.mt-6 { margin-top: 24px; }
-.text-center { text-anchor: middle; text-align: center; }
+.flex {
+    display: flex;
+}
+.flex-col {
+    flex-direction: column;
+}
+.gap-4 {
+    gap: 16px;
+}
+.gap-6 {
+    gap: 24px;
+}
+.flex-grow {
+    flex-grow: 1;
+}
+.h-full {
+    height: 100%;
+}
+.w-full {
+    width: 100%;
+}
+.mt-2 {
+    margin-top: 8px;
+}
+.mt-6 {
+    margin-top: 24px;
+}
+.text-center {
+    text-anchor: middle;
+    text-align: center;
+}
 
 /* Color overrides */
-.bg-neutral-100 { background-color: #ffffff; }
-.bg-neutral-400 { background-color: #a3a3a3; }
-.bg-neutral-600 { background-color: #525252; }
-.bg-orange-500 { background-color: #f97316; }
+.bg-neutral-100 {
+    background-color: #ffffff;
+}
+.bg-neutral-400 {
+    background-color: #a3a3a3;
+}
+.bg-neutral-600 {
+    background-color: #525252;
+}
+.bg-orange-500 {
+    background-color: #f97316;
+}
