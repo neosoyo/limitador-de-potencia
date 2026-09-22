@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <zephyr/kernel.h>
 
-<<<<<<< HEAD
 /* Control loop timing: 1 kHz */
 #define CONTROL_PERIOD_US 1000u
 #define CONTROL_PERIOD_MS 1u
@@ -22,9 +21,6 @@
 
 /* Minimum battery voltage to consider the system safe (Volts) */
 #define BATTERY_MIN_V     5.0f
-=======
-#define CONTROL_PERIOD_US 300 // 500 Hz control loop period
->>>>>>> refs/remotes/origin/main
 
 enum ctrl_state {
     READY,
