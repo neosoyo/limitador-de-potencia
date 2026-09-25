@@ -27,6 +27,7 @@
 	esc_sleep: esc_sleep {
 		group1 {
 			psels = <NRF_PSEL(PWM_OUT0, 0, 2)>;
+			low-power-enable;
 		};
 	};
 	i2c1_default: i2c1_default {
@@ -64,7 +65,16 @@
 
 &i2c1 {
     	status = "okay";
-    	clock-frequency = <I2C_BITRATE_FAST>; /* 400 kHz: 3 register reads fit within the 1 ms control tick */
+	/* Keep the legacy TWI (compatible = "nordic,nrf-twi" from the board) at
+	 * its default 100 kHz. The INA226 probe is on flying leads, and the
+	 * previous I2C_BITRATE_FAST (400 kHz) setting made the sensor fail to
+	 * probe: ina226_init() aborts, the device stays "not ready",
+	 * control_init() returns -ENODEV and the 1 kHz control thread never
+	 * starts, so the ESC output is never driven (the aircraft appears dead).
+	 * Only raise this to <I2C_BITRATE_FAST> after scoping the bus with the
+	 * real harness (short wires + strong pull-ups).
+	 */
+    	clock-frequency = <I2C_BITRATE_STANDARD>;
         pinctrl-0 = <&i2c1_default>;
         pinctrl-1 = <&i2c1_sleep>;
       	pinctrl-names = "default", "sleep";
@@ -73,11 +83,22 @@
 		reg = <0x40>;
 		current-lsb-microamps = <500>;
 		rshunt-micro-ohms = <1000>;
-		/* 1 kHz control loop (1 ms) requires a full conversion in <= 1 ms.
-		 * Total conversion = avg-count x (vbus + vshunt):
-		 * 1 x (332 + 332) us = 664 us -> ~1.5 kHz update rate, >= 1 kHz loop.
+		/* Averaging costs LATENCY, not loop time: the config register is
+		 * written once at init and ina226_read_data() only reads the result
+		 * registers, so the INA226 free-runs and the 1 kHz loop simply
+		 * re-reads the latest latched value (no blocking, no extra I2C time).
+		 *
+		 * Update period = avg-count x (vbus + vshunt conversion):
+		 *   4 x (332 + 332) us = 2.66 ms -> 376 Hz update, ~1.3 ms group
+		 *   delay, i.e. ~5 deg of phase at the ~15 Hz loop bandwidth, and
+		 *   sqrt(4) = 2x less random noise than avg-count = 1.
+		 * avg-count = 16 would add ~5.3 ms (~20 deg); only worth it if noise
+		 * is still the limit after the controller changes.
+		 *
+		 * Floor: the shunt LSB is 2.5 uV, i.e. 2.5 mA over 1 mOhm = ~27 mW at
+		 * 11 V, which averaging cannot improve.
 		 */
-		avg-count = <1>;
+		avg-count = <4>;
 		vbus-conversion-time-us = <332>;
 		vshunt-conversion-time-us = <332>;
 		status = "okay";
@@ -95,12 +116,34 @@
 
 		/* SPI */
 		reg = <0>; /* ignored, but necessary for SPI device */
+		/*
+		 * The driver encodes ONE WS2812 bit as a WHOLE SPI BYTE, not 3 SPI
+		 * bits (see the "8x internal memory overhead: 1 byte of driver RAM
+		 * per bit of pixel data" note in worldsemi,ws2812-spi.yaml, and
+		 * ws2812_spi_ser()/buf.len = length*8*num_colors in the driver), so
+		 * the WS2812 bit period is 8 / f_sck:
+		 *   4 MHz   -> 2.0 us per WS2812 bit  (T1H 750 ns, T0H 250 ns)
+		 *   2.4 MHz -> 4.0 us per WS2812 bit  (T1H 1500 ns - 2x the max!)
+		 * WS2812B wants 1.25 us, and this driver has no finer control, so
+		 * 4 MHz with 0x70/0x40 is the combination Zephyr/Nordic validate for
+		 * exactly this driver
+		 * (zephyr/samples/drivers/led/led_strip/nrf52-bindings.h:
+		 *  SPI_FREQ 4000000, ZERO_FRAME 0x40, ONE_FRAME 0x70).
+		 *
+		 * Do NOT use 2.4 MHz here. This board's spi2 is the legacy
+		 * "nordic,nrf-spi" (CONFIG_SPI_NRFX_SPI), which can only produce
+		 * 125k/250k/500k/1M/2M/4M/8M; get_nrf_spi_frequency() silently picks
+		 * the highest rate NOT exceeding the request, so 2.4 MHz silently
+		 * becomes 2 MHz and every WS2812 bit is stretched to 4.0 us with a
+		 * 1.5 us high time. The strip then fails to decode and typically
+		 * latches all ones = solid WHITE.
+		 */
 		spi-max-frequency = <4000000>;
 
 		/* WS2812 */
 		chain-length = <1>; /* arbitrary; change at will */
-		spi-one-frame = <0x70>;
-		spi-zero-frame = <0x40>;
+		spi-one-frame = <0x70>;  /* 0111 0000: 750 ns high, 1250 ns low */
+		spi-zero-frame = <0x40>; /* 0100 0000: 250 ns high, 1750 ns low */
 		color-mapping = <LED_COLOR_ID_GREEN
 				 LED_COLOR_ID_RED
 				 LED_COLOR_ID_BLUE>;
@@ -115,11 +158,31 @@
 	status = "disabled";
 };
 
+/*
+ * TIMER2 is driven directly through nrfx by src/control.c (GPIOTE -> PPI input
+ * capture of the pilot throttle, NRF_TIMER_CC_CHANNEL0, 16 MHz, 32-bit).
+ *
+ * It MUST stay "disabled" here. These nodes are already "disabled" in
+ * nrf52840.dtsi; enabling them made Zephyr's counter driver
+ * (CONFIG_COUNTER=y, auto-selected CONFIG_COUNTER_NRF_TIMER=y) bind a counter
+ * device to TIMER2 and TIMER3 and run its init at POST_KERNEL, i.e. before
+ * main(): it programs bit width/mode/prescaler on the very same peripheral,
+ * takes CC[0] (its TOP_CH) and CC[1] (COUNTER_READ_CC), and enables the
+ * TIMER2/TIMER3 NVIC lines with its own ISR (IRQ 10 / IRQ 26). That is two
+ * owners for one peripheral: CC[0] is exactly the channel the capture path
+ * writes/reads, and nrfx_timer_init() can silently return NRFX_ERROR_ALREADY,
+ * which src/control.c swallows.
+ *
+ * CONFIG_NRFX_TIMER2=y in prj.conf is what gives us the nrfx TIMER2 driver; it
+ * only needs the "timer2" node *label* to exist, not an "okay" node.
+ * TIMER0/TIMER1 stay disabled on purpose: they are reserved by the SoftDevice
+ * Controller / MPSL that this build uses (chosen zephyr,bt-hci = &bt_hci_sdc).
+ */
 &timer2 {
-	status = "okay";
+	status = "disabled";
 };
 &timer3 {
-	status = "okay";
+	status = "disabled";
 };
 &pwm1{
 	status = "okay";
@@ -145,12 +208,20 @@
 		io-channels = <&adc 1>;
 	};
 
-	pwm_inputs{
-		compatible = "gpio-leds";
-		throtle: throtle {
-			gpios = <&gpio0 28 GPIO_PULL_DOWN>;
-			label = "Throttle input signal";
-		};
+	/*
+	 * Pilot throttle input on P0.28 (XIAO D2). The pulse width is captured
+	 * with nrfx GPIOTE + PPI + TIMER2 in src/control.c, so the node uses a
+	 * binding that has no driver (dts/bindings/pm100,throttle-input.yaml).
+	 * That binding is what types "gpios" as a GPIO phandle-array, which is
+	 * what GPIO_DT_SPEC_GET() in control.c needs.
+	 * Do NOT go back to compatible = "gpio-leds": the Zephyr LED driver
+	 * would configure this *input* pin as a push-pull OUTPUT at POST_KERNEL
+	 * and drive it low (fighting the flight controller's signal) until the
+	 * capture path re-configures it as an input.
+	 */
+	throtle: throtle {
+		compatible = "pm100,throttle-input";
+		gpios = <&gpio0 28 GPIO_PULL_DOWN>;
 	};
 };
 
@@ -163,7 +234,30 @@
 		zephyr,gain = "ADC_GAIN_1_6";
 		zephyr,reference = "ADC_REF_INTERNAL";
 		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-		zephyr,input-positive = <NRF_SAADC_AIN1>; /* P0.02 for nRF52xx, P0.04 for nRF5340 */
+		/* AIN1 = P0.03 = XIAO D1. AIN0 would be P0.02 = XIAO D0, which is
+		 * the ESC PWM output (pwm1 channel 0) - never select it here.
+		 * NB: this channel is only set up by main(), it is never sampled
+		 * (bus voltage comes from the INA226).
+		 */
+		zephyr,input-positive = <NRF_SAADC_AIN1>;
 		zephyr,resolution = <12>;
+	};
+};
+
+/*
+ * Second CDC ACM instance: dedicated binary telemetry stream
+ * (src/stream.c), so shell commands, prompts and log output never mix with
+ * the frames.
+ *
+ * Both instances are interfaces of the same USB device, so they share one
+ * VID/PID (CONFIG_USB_DEVICE_VID/PID) and one iSerialNumber. Zephyr's
+ * cdc_interface_config() rebases the interface numbers per instance, so the
+ * first instance takes interfaces 0/1 and this one takes 2/3 (a second IAD).
+ * Resources: 3 endpoints each (2 IN + 1 OUT), i.e. 4 IN + 2 OUT of the 7+7
+ * the nRF52840 USBD provides.
+ */
+&zephyr_udc0 {
+	stream_cdc_acm_uart: stream_cdc_acm_uart {
+		compatible = "zephyr,cdc-acm-uart";
 	};
 };

@@ -1,16 +1,14 @@
 use dioxus::prelude::*;
 use std::collections::VecDeque;
-use std::fs::File;
-use std::io::Write;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod components;
 mod connection;
 
-use components::{ConfigForms, LevelBars, LiveMetrics, StreamPlot};
+use components::{ConfigForms, ControlPlot, LevelBars, LiveMetrics, StreamPlot};
 use connection::usb::UsbConnection;
-use connection::{DeviceConnection, DeviceStatus, TelemetryData};
+use connection::{CsvRecorder, DeviceConnection, DeviceStatus, RecordingState, TelemetryData};
 
 // Hand-crafted high-performance offline monochrome CSS stylesheet (Dual-Theme)
 const BASE_STYLE_CSS: &str = include_str!("../assets/style.css");
@@ -23,15 +21,9 @@ enum ConnStatus {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum RecordingState {
-    Stopped,
-    Recording,
-    Paused,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
 enum LeftTab {
     Plot,
+    Control,
     Config,
 }
 
@@ -59,11 +51,9 @@ fn app() -> Element {
     let mut team_name = use_signal(|| "Mock Falcon".to_string());
     let mut pin_code = use_signal(|| "123456".to_string());
 
-    let mut adrc_dt = use_signal(|| 0.002f32);
     let mut adrc_wo = use_signal(|| 100.0f32);
     let mut adrc_b0 = use_signal(|| 1.0f32);
     let mut adrc_kp = use_signal(|| 1.0f32);
-    let mut adrc_kd = use_signal(|| 0.10f32);
 
     // Active UI Theme selection (Default: Dark theme)
     let mut is_dark_theme = use_signal(|| true);
@@ -76,87 +66,101 @@ fn app() -> Element {
         conn
     });
 
-    // CSV stream recording state + shared file handle (the Arc is created once;
-    // the inner `Option<File>` is opened/closed by the record controls).
+    // Shared CSV recorder (buffered) + UI-mirroring state/path signals.
+    let recorder = CsvRecorder::new();
+    let telemetry_recorder = recorder.clone();
     let mut recording_state = use_signal(|| RecordingState::Stopped);
-    let csv_file = use_signal(|| Arc::new(Mutex::new(None::<File>)));
     let mut record_path = use_signal(|| String::new());
+
+    // Most recent shell/log message captured from the device console.
+    let mut log_line = use_signal(|| String::new());
 
     // Reactive telemetry subscription. `use_resource` runs this in the current
     // component scope and re-runs it whenever `connection_status` changes. The
     // inner loop re-subscribes automatically if the stream ends while the device
     // is still connected (e.g. after Android freezes/resumes the process), which
     // previously froze the readouts after the app was backgrounded and reopened.
-    let _telemetry_task = use_resource(move || async move {
-        if *connection_status.read() == ConnStatus::Connected {
-            let conn = device_conn.cloned();
+    let _telemetry_task = use_resource(move || {
+        let recorder = telemetry_recorder.clone();
+        async move {
+            if *connection_status.read() == ConnStatus::Connected {
+                let conn = device_conn.cloned();
 
-            loop {
-                if !conn.is_connected().await {
-                    break;
-                }
+                loop {
+                    if !conn.is_connected().await {
+                        break;
+                    }
 
-                match conn.subscribe_telemetry().await {
-                    Ok(mut rx) => {
-                        let mut local_history = VecDeque::new();
-                        while let Some(data) = rx.recv().await {
-                            telemetry_data.set(data.clone());
+                    match conn.subscribe_telemetry(recorder.clone()).await {
+                        Ok(mut rx) => {
+                            let mut local_history = VecDeque::new();
+                            while let Some(data) = rx.recv().await {
+                                telemetry_data.set(data.clone());
 
-                            // Write the frame to the CSV log when recording and
-                            // not paused. `peek()` avoids subscribing the resource
-                            // to `recording_state` (which would restart the stream).
-                            if *recording_state.peek() == RecordingState::Recording {
-                                let file_arc = (*csv_file.peek()).clone();
-                                let mut guard = match file_arc.lock() {
-                                    Ok(g) => g,
-                                    Err(poisoned) => poisoned.into_inner(),
-                                };
-                                if let Some(file) = guard.as_mut() {
-                                    // `power_w` from the firmware is the running
-                                    // peak (max) power. The real-time power is
-                                    // not sent directly, so it is calculated as
-                                    // current × voltage.
-                                    let _ = writeln!(
-                                        file,
-                                        "{},{},{},{},{},{},{},{},{},{}",
-                                        data.time_ms,
-                                        data.power_w,
-                                        data.current_a * data.voltage_v,
-                                        data.current_a,
-                                        data.voltage_v,
-                                        data.total_consumption_j,
-                                        data.pwm_input_us,
-                                        data.pwm_output_us,
-                                        data.pwm_control_us,
-                                        data.status.to_raw(),
-                                    );
+                                // Session peak tracker using peek() to avoid subscription loop
+                                if data.power_w > *max_power.peek() {
+                                    max_power.set(data.power_w);
                                 }
-                            }
 
-                            // Session peak tracker using peek() to avoid subscription loop
-                            if data.power_w > *max_power.peek() {
-                                max_power.set(data.power_w);
-                            }
+                                // 1500 points (30 seconds window at 50 Hz)
+                                local_history.push_back(data);
+                                if local_history.len() > 1500 {
+                                    local_history.pop_front();
+                                }
 
-                            // 300 points (30 seconds window at 10Hz)
-                            local_history.push_back(data);
-                            if local_history.len() > 300 {
-                                local_history.pop_front();
+                                telemetry_history.set(local_history.iter().cloned().collect());
                             }
-
-                            telemetry_history.set(local_history.iter().cloned().collect());
+                        }
+                        Err(e) => {
+                            eprintln!("subscribe_telemetry: {}", e);
                         }
                     }
-                    Err(e) => {
-                        eprintln!("subscribe_telemetry: {}", e);
-                    }
-                }
 
-                // Stream ended while still connected; retry shortly.
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    // Stream ended while still connected; retry shortly.
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
             }
         }
     });
+
+    // Reactive shell/log subscription: collects console messages from the
+    // device while connected, keeping only the most recent lines.
+    let _log_task = use_resource(move || async move {
+        if *connection_status.read() == ConnStatus::Connected {
+            let conn = device_conn.cloned();
+            match conn.subscribe_logs().await {
+                Ok(mut rx) => {
+                    while let Some(line) = rx.recv().await {
+                        log_line.set(line);
+                    }
+                }
+                Err(e) => eprintln!("subscribe_logs: {}", e),
+            }
+        }
+    });
+
+    // Reads the device configuration and populates the form signals. Returns
+    // the future so callers can either await it (during connect) or spawn it
+    // (the "Ler Configuração" button).
+    let read_config_action = move |_| {
+        let conn = device_conn.cloned();
+        async move {
+            match conn.read_config().await {
+                Ok(config) => {
+                    target_power.set(config.target_power);
+                    team_name.set(config.team_name);
+                    team_number.set(config.team_number);
+                    pin_code.set(config.pin_code);
+                    adrc_wo.set(config.wo);
+                    adrc_b0.set(config.b0);
+                    adrc_kp.set(config.kp);
+                }
+                Err(e) => {
+                    eprintln!("Failed to read device config: {}", e);
+                }
+            }
+        }
+    };
 
     let connect_action = move |_| {
         spawn(async move {
@@ -166,22 +170,7 @@ fn app() -> Element {
             match device_conn.cloned().connect().await {
                 Ok(()) => {
                     // Read the device's current configuration and populate the UI.
-                    match device_conn.cloned().read_config().await {
-                        Ok(config) => {
-                            target_power.set(config.target_power);
-                            team_name.set(config.team_name);
-                            team_number.set(config.team_number);
-                            pin_code.set(config.pin_code);
-                            adrc_dt.set(config.dt);
-                            adrc_wo.set(config.wo);
-                            adrc_b0.set(config.b0);
-                            adrc_kp.set(config.kp);
-                            adrc_kd.set(config.kd);
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to read device config: {}", e);
-                        }
-                    }
+                    read_config_action(()).await;
                     connection_status.set(ConnStatus::Connected);
                 }
                 Err(e) => {
@@ -210,15 +199,14 @@ fn app() -> Element {
         });
     };
 
-    let update_adrc_action =
-        move |(dt_val, wo_val, b0_val, kp_val, kd_val): (f32, f32, f32, f32, f32)| {
-            spawn(async move {
-                let _ = device_conn
-                    .cloned()
-                    .update_adrc_gains(dt_val, wo_val, b0_val, kp_val, kd_val)
-                    .await;
-            });
-        };
+    let update_adrc_action = move |(wo_val, b0_val, kp_val): (f32, f32, f32)| {
+        spawn(async move {
+            let _ = device_conn
+                .cloned()
+                .update_adrc_gains(wo_val, b0_val, kp_val)
+                .await;
+        });
+    };
 
     let update_target_action = move |target_val: f32| {
         spawn(async move {
@@ -257,6 +245,7 @@ fn app() -> Element {
 
     // --- CSV stream recording controls ---
 
+    let start_recorder = recorder.clone();
     let start_recording = move |_| {
         let secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -264,40 +253,33 @@ fn app() -> Element {
             .unwrap_or(0);
         let path = format!("pm100_log_{}.csv", secs);
 
-        match File::create(&path) {
-            Ok(mut file) => {
-                let header = "time_ms,max_power_w,power_w,current_a,voltage_v,total_consumption_j,pwm_input_us,pwm_output_us,pwm_control_us,status\n";
-                if file.write_all(header.as_bytes()).is_ok() {
-                    let file_arc = csv_file.cloned();
-                    let mut guard = match file_arc.lock() {
-                        Ok(g) => g,
-                        Err(poisoned) => poisoned.into_inner(),
-                    };
-                    *guard = Some(file);
-                    record_path.set(path);
-                    recording_state.set(RecordingState::Recording);
-                }
+        match start_recorder.start(&path) {
+            Ok(()) => {
+                record_path.set(path);
+                recording_state.set(RecordingState::Recording);
             }
             Err(e) => eprintln!("Failed to create CSV log file: {}", e),
         }
     };
 
+    let toggle_recorder = recorder.clone();
     let toggle_pause_recording = move |_| {
         let next = match *recording_state.peek() {
             RecordingState::Recording => RecordingState::Paused,
             RecordingState::Paused => RecordingState::Recording,
             RecordingState::Stopped => RecordingState::Stopped,
         };
+        match next {
+            RecordingState::Paused => toggle_recorder.pause(),
+            RecordingState::Recording => toggle_recorder.resume(),
+            RecordingState::Stopped => {}
+        }
         recording_state.set(next);
     };
 
+    let stop_recorder = recorder.clone();
     let stop_recording = move |_| {
-        let file_arc = csv_file.cloned();
-        let mut guard = match file_arc.lock() {
-            Ok(g) => g,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        *guard = None; // drop the file, flushing/closing it
+        stop_recorder.stop();
         recording_state.set(RecordingState::Stopped);
         record_path.set(String::new());
     };
@@ -320,6 +302,7 @@ fn app() -> Element {
         DeviceStatus::LimitingPower => "status-limiting",
         DeviceStatus::ErrorNoInput | DeviceStatus::ErrorNoBattery => "status-error",
         DeviceStatus::Blink => "status-blink",
+        DeviceStatus::Learning => "status-learning",
         DeviceStatus::Unknown => "status-unknown",
     };
 
@@ -443,12 +426,12 @@ fn app() -> Element {
                 div {
                     class: "desktop-grid",
 
-                        // Column 1 (Tabbed: Plot / Config forms) - 3fr width
+                        // Column 1 (Tabbed: Plot / Control / Config forms) - 3fr width
                         div {
                             class: "flex flex-col gap-6",
                             style: "grid-column: span 1; min-height: 0;",
 
-                            // Tab bar switching between the plot and the 3 config boxes
+                            // Tab bar switching between the plot, control variables and config boxes
                             div {
                                 class: "tab-bar",
                                 button {
@@ -457,8 +440,18 @@ fn app() -> Element {
                                     "Gráfico"
                                 }
                                 button {
+                                    class: if *left_tab.read() == LeftTab::Control { "tab tab-active" } else { "tab" },
+                                    onclick: move |_| left_tab.set(LeftTab::Control),
+                                    "Controle"
+                                }
+                                button {
                                     class: if *left_tab.read() == LeftTab::Config { "tab tab-active" } else { "tab" },
-                                    onclick: move |_| left_tab.set(LeftTab::Config),
+                                    onclick: move |_| {
+                                        left_tab.set(LeftTab::Config);
+                                        if *connection_status.read() == ConnStatus::Connected {
+                                            spawn(read_config_action(()));
+                                        }
+                                    },
                                     "Configuração"
                                 }
                             }
@@ -470,11 +463,26 @@ fn app() -> Element {
                                 div { class: "status-value {status_class}", "{status_label}" }
                             }
 
+                            // Most recent shell/log message from the device console
+                            div {
+                                class: "log-panel",
+                                div { class: "log-panel-title", "Log do Dispositivo" }
+                                div {
+                                    class: "log-scroll",
+                                    div { class: "log-line", "{log_line}" }
+                                }
+                            }
+
                             {match *left_tab.read() {
                                 LeftTab::Plot => rsx! {
                                     StreamPlot {
                                         history: telemetry_history.cloned(),
                                         max_power: max_power.cloned(),
+                                    }
+                                },
+                                LeftTab::Control => rsx! {
+                                    ControlPlot {
+                                        history: telemetry_history.cloned(),
                                     }
                                 },
                                 LeftTab::Config => rsx! {
@@ -483,11 +491,9 @@ fn app() -> Element {
                                         team_number,
                                         team_name,
                                         pin_code,
-                                        adrc_dt,
                                         adrc_wo,
                                         adrc_b0,
                                         adrc_kp,
-                                        adrc_kd,
                                         on_update_adrc: update_adrc_action,
                                         on_update_target: update_target_action,
                                         on_update_team: update_team_action,

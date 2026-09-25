@@ -6,13 +6,11 @@ pub struct ConfigFormsProps {
     pub team_number: Signal<u32>,
     pub team_name: Signal<String>,
     pub pin_code: Signal<String>,
-    pub adrc_dt: Signal<f32>,
     pub adrc_wo: Signal<f32>,
     pub adrc_b0: Signal<f32>,
     pub adrc_kp: Signal<f32>,
-    pub adrc_kd: Signal<f32>,
 
-    pub on_update_adrc: EventHandler<(f32, f32, f32, f32, f32)>,
+    pub on_update_adrc: EventHandler<(f32, f32, f32)>,
     pub on_update_target: EventHandler<f32>,
     pub on_update_team: EventHandler<(u32, String)>,
     pub on_update_pin: EventHandler<String>,
@@ -64,11 +62,6 @@ pub fn ConfigForms(props: ConfigFormsProps) -> Element {
                 // ADRC Gains Number Forms list
                 div { class: "flex flex-col gap-4",
                     NumberField {
-                        label: "Tempo de Amostragem (dt)",
-                        help: "Passo de amostragem do controlador em segundos. A lei ADRC é avaliada uma vez por passo. O padrão de 0,002 s (2 ms) corresponde ao laço de controle de 500 Hz.",
-                        value: props.adrc_dt
-                    }
-                    NumberField {
                         label: "Largura de Banda do Observador (wo)",
                         help: "Largura de banda do observador de estados estendido (ESO) em rad/s. Valores maiores rastreiam distúrbios mais rápido, mas podem amplificar o ruído de medição.",
                         value: props.adrc_wo
@@ -83,15 +76,10 @@ pub fn ConfigForms(props: ConfigFormsProps) -> Element {
                         help: "Ganho de realimentação proporcional. Aumenta a resposta e reduz o erro em regime permanente; muito alto causa sobressinal (overshoot).",
                         value: props.adrc_kp
                     }
-                    NumberField {
-                        label: "Ganho Derivativo (Kd)",
-                        help: "Ganho de realimentação derivativa. Adiciona amortecimento para reduzir sobressinal e oscilações.",
-                        value: props.adrc_kd
-                    }
 
                     button {
                         class: "btn btn-primary w-full mt-2",
-                        onclick: move |_| props.on_update_adrc.call((props.adrc_dt.cloned(), props.adrc_wo.cloned(), props.adrc_b0.cloned(), props.adrc_kp.cloned(), props.adrc_kd.cloned())),
+                        onclick: move |_| props.on_update_adrc.call((props.adrc_wo.cloned(), props.adrc_b0.cloned(), props.adrc_kp.cloned())),
                         "Atualizar ADRC"
                     }
                 }

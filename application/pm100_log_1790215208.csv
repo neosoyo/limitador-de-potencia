@@ -1,0 +1,1 @@
+time_ms,max_power_w,current_a,voltage_v,total_consumption_j,pwm_input_us,pwm_output_us,pwm_control_us,pwm_ctrl_raw,status,flags,z1_mw,z2_mws,z3_mws,measured_power_w,target_power_w

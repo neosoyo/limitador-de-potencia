@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pilot throttle PWM input of the PM100 power limiter.
+
+  The pulse width is captured by the application itself with nrfx
+  GPIOTE + PPI + TIMER2 (see src/control.c), so there is deliberately NO Zephyr
+  driver for this compatible.
+
+  The binding only exists to give the node the standard "gpios" property
+  declaration. GPIO_DT_SPEC_GET() requires the property to be typed as a
+  phandle-array: that is what makes the devicetree generator emit the
+  controller device ordinal and the "pin" cell macros. Without a binding on the
+  node (or a child-binding on its parent) those macros are not generated at all
+  and the build fails with:
+
+    error: '__device_dts_ord_DT_N_S_throtle_P_gpios_IDX_0_PH_ORD' undeclared
+
+  Note: do NOT go back to compatible = "gpio-leds" on this pin. The Zephyr LED
+  driver would configure an *input* pin as a push-pull output and drive it low
+  at POST_KERNEL, i.e. before control_init() re-configures it through nrfx.
+
+compatible: "pm100,throttle-input"
+
+properties:
+  gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Throttle input pin, e.g. <&gpio0 28 GPIO_PULL_DOWN>.

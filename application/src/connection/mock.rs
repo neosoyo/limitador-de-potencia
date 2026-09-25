@@ -5,7 +5,9 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 
-use crate::connection::{DeviceConfigData, DeviceConnection, DeviceStatus, TelemetryData};
+use crate::connection::{
+    CsvRecorder, DeviceConfigData, DeviceConnection, DeviceStatus, TelemetryData,
+};
 
 /// Emulated connection simulating physical aircraft dynamics under ADRC control.
 #[allow(dead_code)]
@@ -20,11 +22,9 @@ impl MockConnection {
         Self {
             connected: Arc::new(AtomicBool::new(false)),
             config: Arc::new(Mutex::new(DeviceConfigData {
-                dt: 0.002,
                 wo: 100.0,
                 b0: 1.0,
                 kp: 1.5,
-                kd: 0.05,
                 target_power: 150.0, // Default 150W target limit
                 team_name: "Mock Falcon".to_string(),
                 team_number: 404,
@@ -50,7 +50,10 @@ impl DeviceConnection for MockConnection {
         self.connected.load(Ordering::SeqCst)
     }
 
-    async fn subscribe_telemetry(&self) -> Result<mpsc::Receiver<TelemetryData>, String> {
+    async fn subscribe_telemetry(
+        &self,
+        recorder: CsvRecorder,
+    ) -> Result<mpsc::Receiver<TelemetryData>, String> {
         if !self.is_connected().await {
             return Err("Device is not connected".to_string());
         }
@@ -66,6 +69,9 @@ impl DeviceConnection for MockConnection {
 
             // Internal physical model parameters
             let mut throttle_phase = 0.0f32;
+            // Session peak power and LESO estimator state for the control plot.
+            let mut peak_power_w = 0.0f32;
+            let mut z1_ema = 0.0f32;
 
             while connected.load(Ordering::SeqCst) {
                 sleep(Duration::from_millis(100)).await;
@@ -130,9 +136,33 @@ impl DeviceConnection for MockConnection {
                     DeviceStatus::Ready
                 };
 
+                // Instantaneous measured power (the controller input `y`).
+                let measured_power_w = power_w;
+
+                // Running peak power since boot.
+                peak_power_w = peak_power_w.max(measured_power_w);
+
+                // Crude LESO emulation: z1 tracks the measured power with a
+                // first-order lag; z2 is its derivative and z3 the disturbance
+                // (here approximated by the power error to the target).
+                let z1_prev_ema = z1_ema;
+                z1_ema = z1_ema * 0.9 + measured_power_w * 0.1;
+                let z1_mw = (z1_ema * 1000.0) as i32;
+                let z2_mws = ((z1_ema - z1_prev_ema) * 10_000.0) as i32; // dP/dt in mW/s
+                let z3_mws = ((measured_power_w - current_config.target_power) * 1000.0) as i32;
+
+                // Pre-clamp effort: when limiting the raw effort exceeds the
+                // clamped value (wind-up), otherwise it sits at the wide-open
+                // 2000 us ceiling.
+                let pwm_ctrl_raw = if pwm_output_us < pwm_input_us {
+                    (pwm_control_us as i16).saturating_add(150)
+                } else {
+                    2000
+                };
+
                 let data = TelemetryData {
                     time_ms: uptime_ms,
-                    power_w,
+                    power_w: peak_power_w,
                     current_a: current_a.max(0.0),
                     voltage_v: voltage_v.max(0.0),
                     total_consumption_j: energy_j,
@@ -140,7 +170,16 @@ impl DeviceConnection for MockConnection {
                     pwm_output_us,
                     pwm_control_us,
                     status,
+                    flags: 0,
+                    z1_mw,
+                    z2_mws,
+                    z3_mws,
+                    pwm_ctrl_raw,
+                    measured_power_w,
+                    target_power_w: current_config.target_power,
                 };
+
+                recorder.write_sample(&data);
 
                 if tx.send(data).await.is_err() {
                     break; // Receiver disconnected, terminate loop
@@ -151,20 +190,42 @@ impl DeviceConnection for MockConnection {
         Ok(rx)
     }
 
-    async fn update_adrc_gains(
-        &self,
-        dt: f32,
-        wo: f32,
-        b0: f32,
-        kp: f32,
-        kd: f32,
-    ) -> Result<(), String> {
+    async fn subscribe_logs(&self) -> Result<mpsc::Receiver<String>, String> {
+        if !self.is_connected().await {
+            return Err("Device is not connected".to_string());
+        }
+
+        let (tx, rx) = mpsc::channel(64);
+        let connected = Arc::clone(&self.connected);
+
+        tokio::spawn(async move {
+            let mut tick = 0u32;
+            while connected.load(Ordering::SeqCst) {
+                sleep(Duration::from_millis(2000)).await;
+                tick += 1;
+                let lines = [
+                    format!("[00:{:02}:00.000] <inf> app: ADRC loop at 1 kHz", tick),
+                    format!(
+                        "[00:{:02}:00.000] <inf> app: LESO converged (z1 ~150 W)",
+                        tick
+                    ),
+                ];
+                for line in lines {
+                    if tx.send(line).await.is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+
+        Ok(rx)
+    }
+
+    async fn update_adrc_gains(&self, wo: f32, b0: f32, kp: f32) -> Result<(), String> {
         let mut c = self.config.lock().await;
-        c.dt = dt;
         c.wo = wo;
         c.b0 = b0;
         c.kp = kp;
-        c.kd = kd;
         println!("Mock Update: ADRC Gains saved to NVS!");
         Ok(())
     }

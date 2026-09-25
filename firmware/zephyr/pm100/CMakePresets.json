@@ -12,7 +12,7 @@
             "binaryDir": "${sourceDir}/build",
             "cacheVariables": {
                 "BOARD": "xiao_ble/nrf52840",
-                "DTC_OVERLAY_FILE": "xiao_ble_nrf52840.overlay",
+                "DTC_OVERLAY_FILE": "boards/xiao_ble_nrf52840.overlay",
                 "DEBUG_THREAD_INFO": false
             }
         }

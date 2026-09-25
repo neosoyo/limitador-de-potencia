@@ -1,0 +1,34 @@
+
+Analyzed the whole segment (t ≈ 35.9 → 124.6 s, 889 samples, gains wo=75.5, b0=11.69, kp=228.26, kd=30.22, target 100 W). There are three separate findings, and the first one is a blocker.
+
+1. The loop is open — the commanded output never reaches the motor
+pwm_output_us has no measurable effect on the power; the power tracks pwm_input_us (the pilot) instead:
+
+t (ms)	pwm_in	pwm_out	power (W)
+47008 → 47412	1194 → 1175 (flat)	1194 → 1000 (−194 µs)	29.6 → 25.2 (no drop)
+98312 → 98615	1830 → 1719	1830 → 1000 (−830 µs)	35.4 → 36.1 (no drop)
+47311 → 50448	1177 → 1583 (pilot ramping)	1000 (pinned 3.1 s)	25 → 54 (rises with the pilot)
+115409 → 116018	1226 → 1227 (flat)	1226 → 1000	23.4 → 23.4 (no drop)
+A 1000 µs pulse is this ESC's idle: at t=35.9–38.0 s the log shows pwm_out = 989 µs → 0.49 W. Yet the same 1000 µs held for 3.1 s while the motor drew 25 → 54 W and kept tracking the pilot's pulse. So the ESC is being driven by the pilot's signal, not by P0.02 (D0). Either the ESC's signal wire is on the same net as the throttle input (limiter not in series), or P0.02 produces nothing.
+
+Note the ADRC itself is fine here — pwm_control_us really was clamped to the 1000 µs minimum (PWM_MIN_US), so the firmware believes it is commanding idle. Nothing downstream obeys.
+
+Verify in this order:
+
+Scope D0 (P0.02) while pwm_output_us = 1000 → must be a 1 ms pulse every 20 ms; then with 1900 → 1.9 ms. If D0 matches the CSV, the firmware is fine and the harness is wrong.
+Make sure the FC's throttle goes only to D2 (P0.28) and the ESC's signal comes only from D0 — no shared/pass-through node.
+Cleanest firmware test: pm100 target 30 and open the throttle. If the power doesn't collapse every time the CSV shows pwm_output_us = 1000, the actuation path is open and nothing else is worth tuning yet.
+2. Because the loop is open, the controller does the wrong thing even on its own terms
+The P-term alone is kp/b0 = 19.5 µs per watt of error → a 100 W error commands 1953 µs, i.e. the output saturates high as soon as the power is more than ~50 W below target (pwm_control_us = 2000, the status-0 phases ✓).
+When the power rises, −kd·z2/b0 (2.59 µs per W/s) plus −z3/b0 (1 µs per 11.7 W/s²) dominate. At t≈48.3 s (z1 ≈ 24 W) pinning u at 1000 µs needs 30.2·z2 + z3 ≥ 5638, e.g. z2 = 100 W/s → z3 ≈ 2600 W/s². z3 is the observer's catch-all for a model mismatch — the code models the throttle as entering the second derivative (double integrator, z2 = dP/dt), while the real plant is first-order (throttle → power with τ ≈ 0.13 s). So z3 grows to thousands and, because it feeds the control law directly, it drags the output to the bottom.
+Net effect: the output spends roughly 1/5 of the log (≈18 s) pinned at the 1000 µs stop, in "LIMITING_POWER" (status 1), while the actual power was only 16–58 W — below the 100 W target. A limiter should be a pass-through in that region; here the visible behaviour is "the throttle randomly cuts to idle".
+Also relevant: this segment never exceeded ~76 W instantaneous (peak 250.48 W in column 2 is the learning-run boot peak, not the operating power), so with target 100 W there was nothing to limit at all. Test with pm100 target 30 to get a meaningful limiting case.
+3. Two smaller things the log reveals
+The input window is too tight. At t = 90.7 → 93.9 s pwm_in = 2012–2015 µs → over PWM_INPUT_MAX_US (2000) → ERROR_NO_INPUT and a forced 1000 µs safe stop for 3.2 s. The failsafe logic is correct, but a 12 µs overshoot from the FC shouldn't trigger it: widen to 800–2100/2200 µs (control.h).
+Noise is being differentiated. With avg-count = 1 the INA226 gives ±1 sample noise; the log shows power = −1.38 W and voltage = 17.3 V rows at zero current. The control law differentiates the power (z2), so that noise directly hammers u. With the I2C back at 100 kHz, avg-count = 4 (2.7 ms) is affordable at a ~900 Hz loop, or low-pass the power in software.
+I can patch, in this order if you want:
+
+a deadband limiter in adrc_update()/the loop: pass the pilot through while z1 < 0.9·target, engage the controller only above it (kills the spurious 1000 µs cuts, matches projeto.md: "only restricts power when exceeding the limit never exceeds the pilot's requested throttle"),
+widen PWM_INPUT_MIN_US/MAX_US to 800/2100,
+avg-count = 4 + a simple first-order filter on the measured power,
+Say which ones and I'll make the edits — but confirm the D0 → ESC path first, otherwise any tuning result will be meaningless.

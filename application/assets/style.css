@@ -285,6 +285,9 @@ body {
 .status-blink {
     color: #3b82f6;
 }
+.status-learning {
+    color: #f59e0b;
+}
 .status-unknown {
     color: var(--text-subtle);
 }
@@ -292,6 +295,42 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
+}
+
+/* Shell log panel (device console messages) */
+.log-panel {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
+}
+.log-panel-title {
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    transition:
+        color 0.15s,
+        border-color 0.15s;
+}
+.log-scroll {
+    padding: 8px 14px;
+}
+.log-line {
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.15s;
 }
 
 /* Telemetry list rows */
