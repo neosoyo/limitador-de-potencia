@@ -1,6 +1,6 @@
 # Power Limiter (Limitador de Potência) - Project Specifications
 
-This project implements a smart power limiter for RC aircraft electric propulsion using the nRF Connect SDK (NCS) / Zephyr RTOS framework. It runs on a Seeed Studio Xiao BLE (nRF52840) MCU, measuring power consumption via an INA226 sensor, processing an input PWM throttle signal, and regulating a PWM output signal to the Electronic Speed Controller (ESC) using an Active Disturbance Rejection Control (ADRC) law.
+This project implements a smart power limiter for RC aircraft electric propulsion using the nRF Connect SDK (NCS) / Zephyr RTOS framework. It runs on a Seeed Studio Xiao BLE (nRF52840) MCU, measuring power consumption via an INA226 sensor, processing two RC PWM inputs (pilot throttle and a limiter bypass switch), and regulating a PWM output signal to the Electronic Speed Controller (ESC) using an Active Disturbance Rejection Control (ADRC) law.
 
 ---
 

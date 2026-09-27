@@ -68,6 +68,8 @@
  * ADRC_SATURATED : raw ADRC output was clamped to the ESC pulse limits
  *                  (pwm_ctrl_raw is outside [PWM_MIN_US, PWM_MAX_US])
  * SENSOR_ERROR   : the INA226 read failed this cycle (voltage/current are 0)
+ * BYPASS         : the bypass switch is active (>= 1500 us) and the limiter is
+ *                  off; pwm_out follows the pilot throttle directly
  */
 #define PM100_FLAG_INPUT_VALID     (1u << 0)
 #define PM100_FLAG_BATTERY_VALID   (1u << 1)
@@ -76,6 +78,7 @@
 #define PM100_FLAG_LEARN_POWER_CUT (1u << 4)
 #define PM100_FLAG_ADRC_SATURATED  (1u << 5)
 #define PM100_FLAG_SENSOR_ERROR    (1u << 6)
+#define PM100_FLAG_BYPASS          (1u << 7)
 
 /**
  * @brief One control-loop sample (1 kHz tick), fixed-point, 44 bytes.

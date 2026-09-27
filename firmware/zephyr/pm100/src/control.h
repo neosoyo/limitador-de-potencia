@@ -107,6 +107,14 @@ const struct control_ident_result *control_ident_result(void);
 #define PWM_INPUT_MIN_US  850
 #define PWM_INPUT_MAX_US  2100
 
+/*
+ * Limiter bypass switch input. When the bypass PWM input pulse is at or above
+ * this value the ADRC controller is bypassed and the pilot throttle passes
+ * straight to the ESC. Below it, the controller runs normally. The same
+ * PWM_INPUT_MIN_US..PWM_INPUT_MAX_US validity window as the throttle applies.
+ */
+#define PWM_BYPASS_THRESHOLD_US 1500
+
 /* Minimum battery voltage to consider the system safe (Volts) */
 #define BATTERY_MIN_V     5.0f
 
@@ -116,7 +124,8 @@ enum ctrl_state {
     ERROR_NO_INPUT,
     ERROR_NO_BATTERY,
     BLINK,
-    LEARNING
+    LEARNING,
+    BYPASS
 };
 
 /* b0 learning progress stages */
@@ -137,6 +146,7 @@ struct system_telemetry {
     float total_consumption_j;  // Accumulated energy (Joules)
     uint64_t time_ms;           // Uptime timestamp (ms)
     int pwm_input_us;           // Pilot throttle input pulse (us)
+    int pwm_bypass_us;          // Bypass switch input pulse (us)
     int pwm_output_us;          // Applied ESC output pulse (us)
     int pwm_control_us;         // Raw ADRC control effort (us)
     enum ctrl_state state;      // Active control state

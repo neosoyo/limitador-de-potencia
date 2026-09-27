@@ -56,6 +56,7 @@ struct system_telemetry g_telemetry = {
     .total_consumption_j = 0.0f,
     .time_ms = 0,
     .pwm_input_us = PWM_SAFE_STOP_US,
+    .pwm_bypass_us = 0,
     .pwm_output_us = PWM_SAFE_STOP_US,
     .pwm_control_us = PWM_SAFE_STOP_US,
     .state = READY
@@ -97,52 +98,150 @@ static volatile bool g_initialized = false;
 static volatile bool stream_meta_dirty = true;
 
 /* ------------------------------------------------------------------------- */
-/* PWM input capture (pilot throttle)                                        */
+/* PWM input capture (pilot throttle + limiter bypass switch)                */
 /* ------------------------------------------------------------------------- */
 
 static const struct gpio_dt_spec throttle_in = GPIO_DT_SPEC_GET(DT_NODELABEL(throtle), gpios);
+static const struct gpio_dt_spec bypass_in = GPIO_DT_SPEC_GET(DT_NODELABEL(bypass), gpios);
 
 static nrfx_timer_t timer2_inst = NRFX_TIMER_INSTANCE(2);
 static nrfx_gpiote_t gpiote_inst = NRFX_GPIOTE_INSTANCE(0);
-static nrf_ppi_channel_t ppi_channel_cap;
-static nrf_ppi_channel_t ppi_channel_clr;
 
-static volatile uint32_t last_high_time;
-static volatile uint32_t last_period;
-static uint32_t last_low_time;
-static volatile int input_period;
+/*
+ * Two RC-style PWM inputs share one free-running TIMER2. Each input has its
+ * own GPIOTE channel and its own PPI channel that captures TIMER2 into its
+ * own CC register on every edge. The timer is intentionally NOT cleared on
+ * edges (a shared CLEAR task would corrupt the capture epoch of the other
+ * input), so pulse widths are computed as the wrap-safe difference between
+ * consecutive captures on the 32-bit counter.
+ */
+#define PWM_INPUT_THROTTLE 0u
+#define PWM_INPUT_BYPASS   1u
+#define PWM_INPUT_COUNT    2u
+
+/* High pulse width above this is treated as "no signal" (pulse_us = 0). */
+#define PWM_INPUT_NO_SIGNAL_US 2500u
+
+struct pwm_input_channel {
+    const struct gpio_dt_spec *spec;
+    nrfx_gpiote_pin_t abs_pin;
+    uint8_t gpiote_channel;
+    nrf_ppi_channel_t ppi_cap;
+    nrf_timer_cc_channel_t timer_cc;
+    volatile uint32_t last_rising_capture;
+    volatile int pulse_us;
+};
+
+static struct pwm_input_channel pwm_inputs[PWM_INPUT_COUNT];
 
 static void pwm_input_gpiote_handler(nrfx_gpiote_pin_t pin, nrfx_gpiote_trigger_t trigger,
                                      void *p_context)
 {
-    uint32_t phase_time_ticks = nrfx_timer_capture_get(&timer2_inst, NRF_TIMER_CC_CHANNEL0);
-    // Timer runs at 16 MHz (prescaler 0): 16 ticks = 1 us.
-    uint32_t phase_time_us = phase_time_ticks / 16;
+    struct pwm_input_channel *ch = (struct pwm_input_channel *)p_context;
 
-    int pin_val = nrf_gpio_pin_read(pin);
+    if (ch == NULL) {
+        return;
+    }
 
-    if (pin_val == 1) {
-        last_low_time = phase_time_us;
-        last_period = last_high_time + last_low_time;
+    /* PPI already captured the free-running TIMER2 counter at this edge. */
+    uint32_t capture = nrfx_timer_capture_get(&timer2_inst, ch->timer_cc);
+
+    if (trigger == NRFX_GPIOTE_TRIGGER_LOTOHI) {
+        ch->last_rising_capture = capture;
     } else {
-        last_high_time = phase_time_us;
-        if (last_high_time > 2500) {
-            input_period = 0;
-            return;
-        }
-        input_period = last_high_time;
+        /* Timer runs at 16 MHz (prescaler 0): 16 ticks = 1 us. Unsigned
+         * subtraction is modulo 2^32, so the 32-bit counter wrap does not
+         * corrupt the edge-to-edge difference. */
+        uint32_t high_ticks = (uint32_t)(capture - ch->last_rising_capture);
+        uint32_t high_us = high_ticks / 16u;
+
+        ch->pulse_us = (high_us > PWM_INPUT_NO_SIGNAL_US) ? 0 : (int)high_us;
     }
 }
 
 /**
- * @brief Initialize the GPIOTE/PPI/timer input-capture path for the pilot PWM signal.
+ * @brief Configure one GPIOTE/PPI/timer input-capture channel.
+ *
+ * @param ch        Channel state to fill.
+ * @param spec      Devicetree GPIO spec for the input pin.
+ * @param timer_cc  TIMER2 capture/compare register used for this input.
+ * @return int 0 on success, or a negative error code on failure.
+ */
+static int pwm_input_channel_init(struct pwm_input_channel *ch,
+                                  const struct gpio_dt_spec *spec,
+                                  nrf_timer_cc_channel_t timer_cc)
+{
+    nrfx_err_t status;
+
+    ch->spec = spec;
+    ch->timer_cc = timer_cc;
+    ch->last_rising_capture = 0u;
+    ch->pulse_us = 0;
+
+    /* The capture path assumes both inputs are on GPIO port 0 (XIAO D2/D3). */
+    ch->abs_pin = NRF_GPIO_PIN_MAP(0, spec->pin);
+
+    status = nrfx_gpiote_channel_alloc(&gpiote_inst, &ch->gpiote_channel);
+    if (status != NRFX_SUCCESS) {
+        LOG_ERR("Failed to allocate GPIOTE channel for pin %d: %d",
+                ch->abs_pin, status);
+        return -1;
+    }
+
+    nrf_gpio_pin_pull_t pull_config = NRF_GPIO_PIN_PULLDOWN;
+    nrfx_gpiote_trigger_config_t trigger_config = {
+        .trigger = NRFX_GPIOTE_TRIGGER_TOGGLE,
+        .p_in_channel = &ch->gpiote_channel,
+    };
+    nrfx_gpiote_handler_config_t handler_config = {
+        .handler = pwm_input_gpiote_handler,
+        .p_context = ch,
+    };
+    nrfx_gpiote_input_pin_config_t input_config = {
+        .p_pull_config = &pull_config,
+        .p_trigger_config = &trigger_config,
+        .p_handler_config = &handler_config,
+    };
+
+    status = nrfx_gpiote_input_configure(&gpiote_inst, ch->abs_pin, &input_config);
+    if (status != NRFX_SUCCESS) {
+        LOG_ERR("Failed to initialize GPIOTE input pin %d: %d",
+                ch->abs_pin, status);
+        return -1;
+    }
+
+    nrfx_gpiote_trigger_enable(&gpiote_inst, ch->abs_pin, true);
+
+    uint32_t gpiote_evt_addr =
+        nrfx_gpiote_in_event_address_get(&gpiote_inst, ch->abs_pin);
+    if (gpiote_evt_addr == 0) {
+        LOG_ERR("Could not find GPIOTE channel for input pin %d", ch->abs_pin);
+        return -1;
+    }
+
+    if (nrfx_ppi_channel_alloc(&ch->ppi_cap) != NRFX_SUCCESS) {
+        LOG_ERR("Failed to alloc PPI capture channel for pin %d", ch->abs_pin);
+        return -1;
+    }
+
+    uint32_t timer_cap_task =
+        nrfx_timer_capture_task_address_get(&timer2_inst, (uint32_t)timer_cc);
+
+    nrfx_ppi_channel_assign(ch->ppi_cap, gpiote_evt_addr, timer_cap_task);
+    nrfx_ppi_channel_enable(ch->ppi_cap);
+
+    return 0;
+}
+
+/**
+ * @brief Initialize the GPIOTE/PPI/timer input-capture path for the pilot
+ *        throttle and the limiter bypass switch PWM signals.
  *
  * @return int 0 on success, or a negative error code on failure.
  */
 static int pwm_input_init(void)
 {
     nrfx_err_t status;
-    uint32_t abs_pin = NRF_GPIO_PIN_MAP(0, throttle_in.pin); // Assuming port 0 for xiao_ble
 
     LOG_INF("Init Timer...");
     nrfx_timer_config_t timer_config = NRFX_TIMER_DEFAULT_CONFIG(16000000);
@@ -163,76 +262,33 @@ static int pwm_input_init(void)
         }
     }
 
-    LOG_INF("Alloc GPIOTE channel...");
-    uint8_t channel;
-    status = nrfx_gpiote_channel_alloc(&gpiote_inst, &channel);
-    if (status != NRFX_SUCCESS) {
-        LOG_ERR("Failed to allocate GPIOTE channel: %d", status);
+    LOG_INF("Config throttle PWM input (P0.28, CC0)...");
+    if (pwm_input_channel_init(&pwm_inputs[PWM_INPUT_THROTTLE],
+                               &throttle_in, NRF_TIMER_CC_CHANNEL0) < 0) {
         return -1;
     }
 
-    LOG_INF("Config GPIOTE pin...");
-    nrf_gpio_pin_pull_t pull_config = NRF_GPIO_PIN_PULLDOWN;
-    nrfx_gpiote_trigger_config_t trigger_config = {
-        .trigger = NRFX_GPIOTE_TRIGGER_TOGGLE,
-        .p_in_channel = &channel,
-    };
-    nrfx_gpiote_handler_config_t handler_config = {
-        .handler = pwm_input_gpiote_handler,
-    };
-    nrfx_gpiote_input_pin_config_t input_config = {
-        .p_pull_config = &pull_config,
-        .p_trigger_config = &trigger_config,
-        .p_handler_config = &handler_config,
-    };
-
-    status = nrfx_gpiote_input_configure(&gpiote_inst, abs_pin, &input_config);
-    if (status != NRFX_SUCCESS) {
-        LOG_ERR("Failed to initialize GPIOTE input pin %d: %d", abs_pin, status);
+    LOG_INF("Config bypass PWM input (P0.29, CC1)...");
+    if (pwm_input_channel_init(&pwm_inputs[PWM_INPUT_BYPASS],
+                               &bypass_in, NRF_TIMER_CC_CHANNEL1) < 0) {
         return -1;
     }
-
-    LOG_INF("Enable GPIOTE trigger...");
-    nrfx_gpiote_trigger_enable(&gpiote_inst, abs_pin, true);
-
-    uint32_t gpiote_evt_addr = nrfx_gpiote_in_event_address_get(&gpiote_inst, abs_pin);
-
-    if (gpiote_evt_addr == 0) {
-        LOG_ERR("Could not find GPIOTE channel for input pin");
-        return -1;
-    }
-
-    LOG_INF("Alloc PPI channels...");
-    uint32_t timer_cap_task = nrfx_timer_task_address_get(&timer2_inst, NRF_TIMER_TASK_CAPTURE0);
-    uint32_t timer_clr_task = nrfx_timer_task_address_get(&timer2_inst, NRF_TIMER_TASK_CLEAR);
-
-    if (nrfx_ppi_channel_alloc(&ppi_channel_cap) != NRFX_SUCCESS) {
-        LOG_ERR("Failed to alloc PPI cap");
-        return -1;
-    }
-    if (nrfx_ppi_channel_alloc(&ppi_channel_clr) != NRFX_SUCCESS) {
-        LOG_ERR("Failed to alloc PPI clr");
-        return -1;
-    }
-
-    LOG_INF("Assign PPI channels...");
-    nrfx_ppi_channel_assign(ppi_channel_cap, gpiote_evt_addr, timer_cap_task);
-    nrfx_ppi_channel_assign(ppi_channel_clr, gpiote_evt_addr, timer_clr_task);
-
-    LOG_INF("Enable PPI channels...");
-    nrfx_ppi_channel_enable(ppi_channel_cap);
-    nrfx_ppi_channel_enable(ppi_channel_clr);
 
     LOG_INF("Enable Timer...");
     nrfx_timer_enable(&timer2_inst);
 
-    LOG_INF("PWM input init complete.");
+    LOG_INF("PWM input init complete (throttle + bypass).");
     return 0;
 }
 
 static inline int pwm_input_get_period(void)
 {
-    return input_period;
+    return pwm_inputs[PWM_INPUT_THROTTLE].pulse_us;
+}
+
+static inline int pwm_input_get_bypass_period(void)
+{
+    return pwm_inputs[PWM_INPUT_BYPASS].pulse_us;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -997,7 +1053,8 @@ static void learning_finalize(void)
  * @return enum ctrl_state The active control state.
  */
 static enum ctrl_state control_evaluate_state(bool input_valid, bool battery_valid,
-                                              int pwm_in, int pwm_out)
+                                              int pwm_in, int pwm_out,
+                                              bool bypass_active)
 {
     if ((int64_t)(k_uptime_get() - g_blink_start_time) < BLINK_HOLD_MS) {
         return BLINK;
@@ -1005,6 +1062,8 @@ static enum ctrl_state control_evaluate_state(bool input_valid, bool battery_val
         return ERROR_NO_INPUT;
     } else if (!battery_valid) {
         return ERROR_NO_BATTERY;
+    } else if (bypass_active) {
+        return BYPASS;
     } else if (g_learning_mode) {
         return LEARNING;
     } else if (pwm_out < pwm_in) {
@@ -1881,8 +1940,9 @@ void control_thread_handler(void *p1, void *p2, void *p3)
             }
         }
 
-        // 1. Read the pilot throttle input pulse width in microseconds.
+        // 1. Read the pilot throttle and bypass-switch input pulse widths.
         int pwm_in = pwm_input_get_period();
+        int pwm_bypass = pwm_input_get_bypass_period();
 
         // 2. Sample the INA226 power sensor.
         float current_power = 0.0f;
@@ -1904,6 +1964,36 @@ void control_thread_handler(void *p1, void *p2, void *p3)
         bool battery_valid = (voltage >= BATTERY_MIN_V);
         bool is_safe = input_valid && battery_valid;
 
+        // 3b. Bypass switch: a valid bypass PWM >= 1500 us disables the power
+        //     limiter and passes the pilot throttle straight to the ESC. It
+        //     only takes effect while input and battery are valid; the safety
+        //     checks above always win.
+        bool bypass_valid = (pwm_bypass >= PWM_INPUT_MIN_US &&
+                             pwm_bypass <= PWM_INPUT_MAX_US);
+        bool bypass_active = bypass_valid &&
+                             (pwm_bypass >= PWM_BYPASS_THRESHOLD_US);
+        bool bypass_now_active = is_safe && bypass_active;
+
+        static bool bypass_was_active;
+        if (bypass_now_active != bypass_was_active) {
+            bypass_was_active = bypass_now_active;
+            if (bypass_now_active) {
+                if (g_ident_res.running) {
+                    ident_finish(false, "Bypass switch engaged.");
+                }
+                if (g_learning_mode) {
+                    learning_restart("Bypass switch engaged.");
+                }
+                printf("[BYPASS] Controller bypassed (switch %d us): "
+                       "throttle passes straight to the ESC.\r\n", pwm_bypass);
+            } else {
+                /* The observer was not advanced while bypassed; start clean so
+                 * re-engaging the limiter does not kick from stale states. */
+                adrc_reset();
+                printf("[BYPASS] Controller re-engaged.\r\n");
+            }
+        }
+
         // Detect learning-mode transitions so buffers are reset in thread context.
         static bool learn_was_active;
         if (g_learning_mode != learn_was_active) {
@@ -1916,12 +2006,22 @@ void control_thread_handler(void *p1, void *p2, void *p3)
 
         // 4. Automatic identification: while it runs it owns the ESC output.
         //    It only takes over after the arming delay, so the pilot keeps the
-        //    throttle until the stick has been idle for a second.
-        bool ident_active = control_ident_tick(pwm_in, voltage, current_power, is_safe);
+        //    throttle until the stick has been idle for a second. While the
+        //    bypass switch is engaged the pilot is in direct control, so the
+        //    identification state machine is not advanced (a running one was
+        //    already aborted in step 3b).
+        bool ident_active = bypass_now_active
+                                ? false
+                                : control_ident_tick(pwm_in, voltage,
+                                                     current_power, is_safe);
 
         // 5. Compute the control effort if safe.
         float command_val = PWM_SAFE_STOP_US; // Default safe-stop pulse.
-        if (ident_active) {
+        if (bypass_now_active) {
+            /* Bypass: pass the pilot throttle through. The min() in step 6
+             * collapses to pwm_in, so the ESC follows the stick directly. */
+            command_val = (float)pwm_in;
+        } else if (ident_active) {
             command_val = (float)g_ident.pulse;
         } else if (is_safe) {
             if (g_learning_mode) {
@@ -2013,7 +2113,8 @@ void control_thread_handler(void *p1, void *p2, void *p3)
         enum ctrl_state state = control_ident_running()
                                     ? LEARNING
                                     : control_evaluate_state(input_valid, battery_valid,
-                                                             pwm_in, pwm_out);
+                                                             pwm_in, pwm_out,
+                                                             bypass_now_active);
 
         // 8. Store results to the thread-safe telemetry structure.
         k_mutex_lock(&g_telemetry_mutex, K_FOREVER);
@@ -2023,6 +2124,7 @@ void control_thread_handler(void *p1, void *p2, void *p3)
         g_telemetry.total_consumption_j = g_ina226.current_joules;
         g_telemetry.time_ms = k_uptime_get();
         g_telemetry.pwm_input_us = pwm_in;
+        g_telemetry.pwm_bypass_us = pwm_bypass;
         g_telemetry.pwm_output_us = pwm_out;
         g_telemetry.pwm_control_us = (int)command_val;
         g_telemetry.state = state;
@@ -2033,9 +2135,11 @@ void control_thread_handler(void *p1, void *p2, void *p3)
         //    fixed-point conversions plus one ring_buf_put(), no formatting.
         if (stream_is_enabled()) {
             struct pm100_stream_sample smp;
-            // The control law only runs on a safe tick outside learning and
-            // outside identification; the observer states are stale otherwise.
-            bool adrc_ran = is_safe && !g_learning_mode && !ident_active;
+            // The control law only runs on a safe tick outside learning,
+            // outside identification and outside bypass; the observer states
+            // are stale otherwise.
+            bool adrc_ran = is_safe && !g_learning_mode && !ident_active &&
+                            !bypass_now_active;
             bool saturated = adrc_ran && ((int)g_adrc.u_raw != (int)command_val);
 
             smp.t_ms = (uint32_t)g_telemetry.time_ms;
@@ -2062,7 +2166,8 @@ void control_thread_handler(void *p1, void *p2, void *p3)
                         (g_learning_mode ? PM100_FLAG_LEARNING : 0u) |
                         (learn_power_cut ? PM100_FLAG_LEARN_POWER_CUT : 0u) |
                         (saturated ? PM100_FLAG_ADRC_SATURATED : 0u) |
-                        ((sensor_err < 0) ? PM100_FLAG_SENSOR_ERROR : 0u);
+                        ((sensor_err < 0) ? PM100_FLAG_SENSOR_ERROR : 0u) |
+                        (bypass_now_active ? PM100_FLAG_BYPASS : 0u);
 
             stream_push_sample(&smp);
 

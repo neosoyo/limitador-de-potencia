@@ -204,43 +204,31 @@
 		max-pulse = <PWM_USEC(2500)>;
 		status = "okay";
 	};
-	zephyr,user {
-		io-channels = <&adc 1>;
-	};
 
 	/*
-	 * Pilot throttle input on P0.28 (XIAO D2). The pulse width is captured
-	 * with nrfx GPIOTE + PPI + TIMER2 in src/control.c, so the node uses a
-	 * binding that has no driver (dts/bindings/pm100,throttle-input.yaml).
-	 * That binding is what types "gpios" as a GPIO phandle-array, which is
-	 * what GPIO_DT_SPEC_GET() in control.c needs.
+	 * RC-style PWM inputs, captured with nrfx GPIOTE + PPI + TIMER2 in
+	 * src/control.c. Both nodes use a binding that has no driver
+	 * (dts/bindings/pm100,throttle-input.yaml); that binding is what types
+	 * "gpios" as a GPIO phandle-array, which is what GPIO_DT_SPEC_GET() in
+	 * control.c needs.
 	 * Do NOT go back to compatible = "gpio-leds": the Zephyr LED driver
-	 * would configure this *input* pin as a push-pull OUTPUT at POST_KERNEL
-	 * and drive it low (fighting the flight controller's signal) until the
-	 * capture path re-configures it as an input.
+	 * would configure these *input* pins as push-pull OUTPUTs at POST_KERNEL
+	 * and drive them low (fighting the flight controller's signal) until the
+	 * capture path re-configures them as inputs.
 	 */
 	throtle: throtle {
 		compatible = "pm100,throttle-input";
+		/* Pilot throttle input on P0.28 (XIAO D2). */
 		gpios = <&gpio0 28 GPIO_PULL_DOWN>;
 	};
-};
 
-&adc {
-	#address-cells = <1>;
-	#size-cells = <0>;
-	status = "okay";
-	channel@1 {
-		reg = <1>;
-		zephyr,gain = "ADC_GAIN_1_6";
-		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-		/* AIN1 = P0.03 = XIAO D1. AIN0 would be P0.02 = XIAO D0, which is
-		 * the ESC PWM output (pwm1 channel 0) - never select it here.
-		 * NB: this channel is only set up by main(), it is never sampled
-		 * (bus voltage comes from the INA226).
-		 */
-		zephyr,input-positive = <NRF_SAADC_AIN1>;
-		zephyr,resolution = <12>;
+	/* Limiter bypass switch input on P0.29 (XIAO D3). When this pulse is
+	 * >= 1500 us the controller is bypassed and the pilot throttle passes
+	 * straight to the ESC; below 1500 us the limiter runs normally.
+	 */
+	bypass: bypass {
+		compatible = "pm100,throttle-input";
+		gpios = <&gpio0 29 GPIO_PULL_DOWN>;
 	};
 };
 

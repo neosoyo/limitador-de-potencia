@@ -1,6 +1,6 @@
 # Power Limiter (Limitador de Potência) - Project Specifications
 
-This project implements a smart power limiter for RC aircraft electric propulsion using the nRF Connect SDK (NCS) / Zephyr RTOS framework. It runs on a Seeed Studio Xiao BLE (nRF52840) MCU, measuring power consumption via an INA226 sensor, processing an input PWM throttle signal, and regulating a PWM output signal to the Electronic Speed Controller (ESC) using an Active Disturbance Rejection Control (ADRC) law.
+This project implements a smart power limiter for RC aircraft electric propulsion using the nRF Connect SDK (NCS) / Zephyr RTOS framework. It runs on a Seeed Studio Xiao BLE (nRF52840) MCU, measuring power consumption via an INA226 sensor, processing two RC PWM inputs (pilot throttle and a limiter bypass switch), and regulating a PWM output signal to the Electronic Speed Controller (ESC) using an Active Disturbance Rejection Control (ADRC) law.
 
 ---
 
@@ -22,7 +22,7 @@ The system is designed around **four concurrent threads** to handle hard real-ti
   |     Thread 2: Telemetry     |   |     Thread 4: Binary Stream         |
   |           (10 Hz)           |   |      (4 ms default period)          |
   |  - Format controller state  |   |  - Pack 44 B samples / 84 B meta    |
-  |    to CSV, 9 fields         |   |    into framed binary packets       |
+  |    to CSV, 10 fields        |   |    into framed binary packets       |
   |  - USB CDC ACM port 0       |   |  - USB CDC ACM port 1               |
   +--------------+--------------+   +----------------+--------------------+
                  |                                   |
@@ -41,14 +41,19 @@ The system is designed around **four concurrent threads** to handle hard real-ti
 ### Thread 1: Control Loop (1kHz / Period: 1ms)
 *   **Purpose:** Perform real-time power limiting to prevent motor/battery overload while respecting the pilot's throttle commands.
 *   **Control Logic:**
-    1.  Read the active throttle input signal ($PWM_{in}$) in microseconds.
-    2.  Read the current bus voltage, current, and power ($P_{meas}$) from the INA226 sensor.
-    3.  Compute the ADRC control effort command ($u_{ctrl}$) to drive $P_{meas}$ toward the desired $P_{target}$, using the **first-order** plant model $\dot P = b_0 u + f$ with a second-order LESO ($z_1 \approx P$, $z_2 \approx f$) — see §3.
-    4.  Apply the output limit:
+    1.  Read the active throttle input signal ($PWM_{in}$) in microseconds (P0.28 / XIAO D2).
+    2.  Read the limiter bypass switch input signal ($PWM_{bypass}$) in microseconds (P0.29 / XIAO D3).
+    3.  Read the current bus voltage, current, and power ($P_{meas}$) from the INA226 sensor.
+    4.  Compute the ADRC control effort command ($u_{ctrl}$) to drive $P_{meas}$ toward the desired $P_{target}$, using the **first-order** plant model $\dot P = b_0 u + f$ with a second-order LESO ($z_1 \approx P$, $z_2 \approx f$) — see §3.
+    5.  Apply the output limit:
         $$PWM_{out} = \min(PWM_{in}, u_{ctrl})$$
-        This guarantees that the controller only restricts power when exceeding the limit and never exceeds the pilot's requested throttle. The only exception is the **automatic identification** (`pm100 ident run`, see §3), which takes ownership of the ESC output for ~4 s and commands its own staircase — deliberately above the pilot's idle stick. That mode still respects the 1000–2000 µs actuator limits, the 400 W power cap and the 20 s timeout, and any stick movement or unsafe condition aborts it on the same tick.
-    5.  Feed the pulse that was actually applied back into the observer (`adrc_set_applied()`), so the LESO integrates the real actuator input rather than a command that the pilot's PWM or the pulse limits may have cut.
-    6.  Update status flags (OK, Limiting, or Error) based on throttle input boundaries and control state. An identification run reports the **LEARNING** state so the LED and the console show an autonomous motor run.
+        This guarantees that the controller only restricts power when exceeding the limit and never exceeds the pilot's requested throttle. Two exceptions exist:
+        *   **Bypass switch:** when $PWM_{bypass}$ is inside the valid 850–2100 µs window and $\ge 1500$ µs, the controller is bypassed: $u_{ctrl}$ is forced to $PWM_{in}$, so the ESC follows the pilot throttle directly (the limiter is off). Below 1500 µs the controller runs normally.
+        *   **Automatic identification** (`pm100 ident run`, see §3): takes ownership of the ESC output for ~4 s and commands its own staircase — deliberately above the pilot's idle stick. That mode still respects the 1000–2000 µs actuator limits, the 400 W power cap and the 20 s timeout, and any stick movement or unsafe condition aborts it on the same tick.
+        Safety checks always win: an invalid throttle input or a low battery forces the safe-stop pulse (1000 µs) regardless of the bypass switch.
+    6.  Feed the pulse that was actually applied back into the observer (`adrc_set_applied()`), so the LESO integrates the real actuator input rather than a command that the pilot's PWM or the pulse limits may have cut.
+    7.  Update status flags (OK, Limiting, Error, or Bypass) based on throttle input boundaries, the bypass switch and the control state. An identification run reports the **LEARNING** state so the LED and the console show an autonomous motor run; an engaged bypass switch reports the **BYPASS** state.
+*   **Bypass transitions:** while bypassed the LESO is not advanced, and re-engaging the controller resets the observer so it does not kick from stale states. Engaging the bypass aborts a running identification and restarts an active b0-learning run.
 *   **Feedforward:** the control law is $u = u_{ff} + \frac{k_p (r - z_1) - z_2}{b_0}$, where $u_{ff}$ comes from the inverse identification map (0 = pure feedback until `pm100 ident run` has been executed successfully). See §3.
 *   **Scheduling:** Set with high preemptive or cooperative priority to ensure minimal jitter.
 
@@ -60,19 +65,20 @@ The system is designed around **four concurrent threads** to handle hard real-ti
     3.  **Bluetooth BLE:** Broadcasts/transmits the same telemetry buffer packet at 10Hz.
 *   Data Format (CSV):
     ```csv
-    <time_ms>,<peak_power_w>,<current_a>,<voltage_v>,<total_consumption_j>,<pwm_input_us>,<pwm_output_us>,<pwm_control_us>,<control_state>
+    <time_ms>,<peak_power_w>,<current_a>,<voltage_v>,<total_consumption_j>,<pwm_input_us>,<pwm_bypass_us>,<pwm_output_us>,<pwm_control_us>,<control_state>
     ```
-    Where `<peak_power_w>` is the peak power measured since boot, in Watts, and `<control_state>` is represented as an integer:
+    Where `<peak_power_w>` is the peak power measured since boot, in Watts, `<pwm_bypass_us>` is the limiter bypass switch input pulse in microseconds, and `<control_state>` is represented as an integer:
     * `0` = **`READY`**
     * `1` = **`LIMITING_POWER`**
     * `2` = **`ERROR_NO_INPUT`**
     * `3` = **`ERROR_NO_BATTERY`**
     * `4` = **`BLINK`**
     * `5` = **`LEARNING`**
+    * `6` = **`BYPASS`**
 
-    *Example Output:*
+    *Example Output:* (bypass switch at 1100 µs → controller active, state `READY`)
     ```csv
-    34200,120.5,10.2,11.8,450.2,1500,1420,1420,0
+    34200,120.5,10.2,11.8,450.2,1500,1100,1420,1420,0
     ```
 *   Control Shell Features:
     *   Enable/disable the USB console's CSV stream via shell commands.
@@ -91,6 +97,7 @@ The system is designed around **four concurrent threads** to handle hard real-ti
 | **ERROR_NO_BATTERY** | `3` | $Voltage < 5.0\,\text{V}$ | **Red** (e.g., `#FF0000`) | **2 Hz** | Blinks every 500ms (250ms ON, 250ms OFF) |
 | **BLINK** | `4` | Triggered via CLI or BLE, overrides all other states | **White** (e.g., `#FFFFFF`) | **5 Hz** | Blinks every 200ms (100ms ON, 100ms OFF) for 5 seconds |
 | **LEARNING** | `5` | ADRC b0 learning mode active ($b_0 = 0$) | **Orange** (e.g., `#FF7F00`) | **4 Hz** | Blinks every 250ms (125ms ON, 125ms OFF) |
+| **BYPASS** | `6` | Bypass switch PWM $\ge 1500\,\mu\text{s}$ (limiter off, throttle passes straight through) | **Purple** (e.g., `#800080`) | **2 Hz** | Blinks every 500ms (250ms ON, 250ms OFF) |
 ### Thread 4: Binary Telemetry Stream (4ms default period / 250Hz framing)
 *   **Purpose:** Ship *every* 1 kHz control-loop sample plus the ADRC internals to a desktop application without disturbing the shell or the control loop.
 *   **Inputs:** Lock-free single-producer/single-consumer (SPSC) ring buffer filled by Thread 1.
@@ -286,8 +293,9 @@ Little-endian, packed, no padding. `frame := header payload`.
 | 4 | `0x10` | `LEARN_POWER_CUT` | learning safety cap tripped |
 | 5 | `0x20` | `ADRC_SATURATED` | raw effort was clamped to 1000–2000 µs |
 | 6 | `0x40` | `SENSOR_ERROR` | INA226 read failed this tick (v/i forced to 0) |
+| 7 | `0x80` | `BYPASS` | bypass switch ≥ 1500 µs: limiter off, throttle passes straight through |
 
-> `z1_mw`, `z2_mws`, `z3_mws` and `pwm_ctrl_raw` are only meaningful on ticks where the control law actually ran (`SAFE` set and `LEARNING` clear); they hold the previous value otherwise.
+> `z1_mw`, `z2_mws`, `z3_mws` and `pwm_ctrl_raw` are only meaningful on ticks where the control law actually ran (`SAFE` set, `LEARNING` clear and `BYPASS` clear); they hold the previous value otherwise.
 
 **Payload type 2 — `pm100_stream_meta`, 84 bytes** (sent once per second *and* immediately after any parameter change)
 

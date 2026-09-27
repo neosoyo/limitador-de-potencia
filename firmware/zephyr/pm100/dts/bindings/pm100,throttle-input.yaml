@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 description: |
-  Pilot throttle PWM input of the PM100 power limiter.
+  RC-style PWM input of the PM100 power limiter (pilot throttle, limiter
+  bypass switch, ...).
 
   The pulse width is captured by the application itself with nrfx
   GPIOTE + PPI + TIMER2 (see src/control.c), so there is deliberately NO Zephyr

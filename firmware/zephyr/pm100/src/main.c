@@ -10,7 +10,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/device.h>
@@ -22,14 +21,12 @@
 #include "stream.h"
 
 #define LED0_NODE DT_ALIAS(led0)
-#define ZEPHYR_USER_NODE DT_PATH(zephyr_user)
 #define STRIP_NODE DT_ALIAS(rgba)
 
 LOG_MODULE_REGISTER(PM100_devel, LOG_LEVEL_DBG);
 
 /* Getting peripherals from device tree */
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
-static const struct adc_dt_spec adc_channel = ADC_DT_SPEC_GET(DT_PATH(zephyr_user));
 static const struct device *const strip = DEVICE_DT_GET(STRIP_NODE);
 
 #define STRIP_NUM_PIXELS DT_PROP(STRIP_NODE, chain_length)
@@ -62,6 +59,7 @@ volatile int64_t g_blink_start_time = -100000;
 #define LED_COLOR_RED    ((struct led_rgb){ .r = 0xFF, .g = 0x00, .b = 0x00 }) /* #FF0000 -> ERROR_*        */
 #define LED_COLOR_WHITE  ((struct led_rgb){ .r = 0xFF, .g = 0xFF, .b = 0xFF }) /* #FFFFFF -> BLINK          */
 #define LED_COLOR_ORANGE ((struct led_rgb){ .r = 0xFF, .g = 0x7F, .b = 0x00 }) /* #FF7F00 -> LEARNING       */
+#define LED_COLOR_PURPLE ((struct led_rgb){ .r = 0x80, .g = 0x00, .b = 0x80 }) /* #800080 -> BYPASS         */
 
 /**
  * @brief Thread 2 entry point: Updates and transmits telemetry diagnostics at 10Hz.
@@ -88,13 +86,14 @@ void telem_thread_handler(void *p1, void *p2, void *p3)
 
         // Print CSV data stream if toggle flag is active
         if (g_stream_active) {
-            printf("%llu,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d\r\n",
+            printf("%llu,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%d\r\n",
                    local_telem.time_ms,
                    local_telem.power_w,
                    local_telem.current_a,
                    local_telem.voltage_v,
                    local_telem.total_consumption_j,
                    local_telem.pwm_input_us,
+                   local_telem.pwm_bypass_us,
                    local_telem.pwm_output_us,
                    local_telem.pwm_control_us,
                    (int)local_telem.state);
@@ -168,6 +167,10 @@ void led_thread_handler(void *p1, void *p2, void *p3)
                 case LEARNING:
                     color = LED_COLOR_ORANGE;
                     sleep_ms = 125; // 4Hz blink (125ms ON)
+                    break;
+                case BYPASS:
+                    color = LED_COLOR_PURPLE;
+                    sleep_ms = 250; // 2Hz blink (250ms ON)
                     break;
                 default:
                     break;
@@ -270,14 +273,6 @@ int main(void)
         ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
         if (ret < 0) {
             LOG_ERR("Failed to configure LED pin: %d", ret);
-        }
-    }
-
-    LOG_INF("Checking ADC channel...");
-    if (adc_is_ready_dt(&adc_channel)) {
-        ret = adc_channel_setup_dt(&adc_channel);
-        if (ret < 0) {
-            LOG_ERR("Could not setup ADC channel: %d", ret);
         }
     }
 
@@ -602,13 +597,14 @@ static int cmd_stream(const struct shell *sh, size_t argc, char **argv)
 static int cmd_readings(const struct shell *sh, size_t argc, char **argv)
 {
     k_mutex_lock(&g_telemetry_mutex, K_FOREVER);
-    shell_print(sh, "%llu,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d",
+    shell_print(sh, "%llu,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%d",
                 g_telemetry.time_ms,
                 g_telemetry.power_w,
                 g_telemetry.current_a,
                 g_telemetry.voltage_v,
                 g_telemetry.total_consumption_j,
                 g_telemetry.pwm_input_us,
+                g_telemetry.pwm_bypass_us,
                 g_telemetry.pwm_output_us,
                 g_telemetry.pwm_control_us,
                 (int)g_telemetry.state);
