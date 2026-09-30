@@ -67,7 +67,10 @@ fn app() -> Element {
     });
 
     // Shared CSV recorder (buffered) + UI-mirroring state/path signals.
-    let recorder = CsvRecorder::new();
+    // The recorder must be created once and kept stable across re-renders,
+    // otherwise a new (disconnected) recorder is created each render and the
+    // binary reader would write to a different one than the start/stop buttons.
+    let recorder = use_signal(|| CsvRecorder::new()).cloned();
     let telemetry_recorder = recorder.clone();
     let mut recording_state = use_signal(|| RecordingState::Stopped);
     let mut record_path = use_signal(|| String::new());
@@ -251,7 +254,14 @@ fn app() -> Element {
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        let path = format!("pm100_log_{}.csv", secs);
+        let filename = format!("pm100_log_{}.csv", secs);
+        // Resolve the full path so the status label shows exactly where the
+        // file is written.
+        let path = std::env::current_dir()
+            .map(|dir| dir.join(&filename))
+            .unwrap_or_else(|_| std::path::PathBuf::from(&filename))
+            .display()
+            .to_string();
 
         match start_recorder.start(&path) {
             Ok(()) => {

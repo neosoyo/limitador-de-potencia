@@ -22,6 +22,14 @@ pub struct CsvRecorder {
     inner: Arc<Mutex<RecordingInner>>,
 }
 
+/// Two recorders are equal when they share the same underlying state (same
+/// `Arc`). This is what makes it usable as a Dioxus signal value.
+impl PartialEq for CsvRecorder {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
 struct RecordingInner {
     file: Option<BufWriter<File>>,
     state: RecordingState,
